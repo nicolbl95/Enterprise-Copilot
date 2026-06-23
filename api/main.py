@@ -18,7 +18,7 @@ def chat_endpoint(request: ChatRequest):
     # Si l'utilisateur n'envoie pas d'id de conversation, on en génère un nouveau
     conv_id = request.conversation_id or str(uuid.uuid4())
     
-    # Simulation temporaire de la réponse de l'IA (en avant de connecter nos agents)
+    # Simulation temporaire de la réponse de l'IA (en attendant de connecter nos agents)
     fake_ai_response = f"Echo de l'IA : J'ai bien reçu ton message : '{request.message}'"
     
     return ChatResponse(
