@@ -1,0 +1,14 @@
+# Environnement virtuel
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+
+# Variables d'environnement / Secrets
+.env
+
+# Données locales et fichiers temporaires
+data/
+*.pdf
+.DS_Store
