@@ -47,14 +47,18 @@ print("GROQ_API_KEY exists:", bool(os.getenv("GROQ_API_KEY")))
 # 3. INITIALISATION LANGFUSE AVANT LES IMPORTS LLAMAINDEX/AGENTS
 # ============================================================
 
-from langfuse import Langfuse
+from langfuse import get_client
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
-langfuse = Langfuse(
-    public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
-    secret_key=os.environ["LANGFUSE_SECRET_KEY"],
-    host=os.environ["LANGFUSE_BASE_URL"],
-)
+langfuse = get_client()
+
+try:
+    if langfuse.auth_check():
+        print("✅ Langfuse connecté")
+    else:
+        print("❌ Langfuse non connecté : vérifie les clés Langfuse et LANGFUSE_BASE_URL")
+except Exception as e:
+    print("❌ Erreur auth_check Langfuse:", e)
 
 try:
     if langfuse.auth_check():
@@ -131,19 +135,17 @@ if user_query := st.chat_input("Votre question ici..."):
     # Générer la réponse
     with st.chat_message("assistant"):
         with st.spinner("Le Copilot consulte les manuels et l'historique..."):
+
             try:
-                # Span manuel pour garantir qu'une trace apparaît dans Langfuse
                 with langfuse.start_as_current_observation(
                     as_type="span",
                     name="enterprise-copilot-question",
                     input={"question": user_query},
                 ) as trace_span:
 
-                    # Récupération de l'index vectoriel
                     index = setup_search_engine()
                     retriever = index.as_retriever(similarity_top_k=2)
 
-                    # Configuration du Chat Engine
                     chat_engine = CondensePlusContextChatEngine.from_defaults(
                         retriever=retriever,
                         llm=Settings.llm,
@@ -157,20 +159,16 @@ if user_query := st.chat_input("Votre question ici..."):
                         )
                     )
 
-                    # Appel LLM/RAG
                     response = chat_engine.chat(user_query)
                     answer_text = str(response)
 
-                    # Ajouter la réponse dans Langfuse
                     trace_span.update(output={"answer": answer_text})
 
-                # Important avec Streamlit : forcer l'envoi des traces
                 langfuse.flush()
+                print("✅ Trace envoyée à Langfuse")
 
-                # Afficher la réponse
                 st.write(answer_text)
 
-                # Sauvegarder dans l'historique UI
                 st.session_state.messages.append(
                     {"role": "assistant", "content": answer_text}
                 )
