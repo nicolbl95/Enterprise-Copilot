@@ -34,16 +34,13 @@ print("GROQ_API_KEY exists:", bool(os.getenv("GROQ_API_KEY")))
 
 
 # ============================================================
-# 3. INITIALISATION LANGFUSE VERSION COMPATIBLE
+# 3. INITIALISATION LANGFUSE VERSION RÉCENTE
 # ============================================================
 
-from langfuse import Langfuse
+from langfuse import get_client
+from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
-langfuse = Langfuse(
-    public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
-    secret_key=os.environ["LANGFUSE_SECRET_KEY"],
-    host=os.environ["LANGFUSE_BASE_URL"],
-)
+langfuse = get_client()
 
 try:
     if langfuse.auth_check():
@@ -52,6 +49,9 @@ try:
         print("❌ Langfuse non connecté : vérifie les clés Langfuse")
 except Exception as e:
     print("❌ Erreur auth_check Langfuse:", e)
+
+# Active l'instrumentation LlamaIndex
+LlamaIndexInstrumentor().instrument()
 
 
 # ============================================================
@@ -117,36 +117,39 @@ if user_query := st.chat_input("Votre question ici..."):
         with st.spinner("Le Copilot consulte les manuels et l'historique..."):
 
             try:
-                # Créer la trace Langfuse
-                trace = getattr(langfuse, "trace")(
+                # Crée une observation/trace Langfuse pour cette question
+                with langfuse.start_as_current_observation(
+                    as_type="span",
                     name="enterprise-copilot-question",
                     input={"question": user_query},
                     metadata={
                         "app": "enterprise-copilot",
                         "source": "streamlit"
                     }
-                )
+                ) as trace_span:
 
-                index = setup_search_engine()
-                retriever = index.as_retriever(similarity_top_k=2)
+                    index = setup_search_engine()
+                    retriever = index.as_retriever(similarity_top_k=2)
 
-                chat_engine = CondensePlusContextChatEngine.from_defaults(
-                    retriever=retriever,
-                    llm=Settings.llm,
-                    memory=st.session_state.chat_memory,
-                    context_prompt=(
-                        "Vous êtes un assistant IA de confiance pour l'entreprise.\n"
-                        "Répondez à la question de l'utilisateur en vous basant sur le contexte fourni ci-dessous.\n"
-                        "Si la réponse n'est pas dans le contexte, dites-le simplement sans inventer d'informations.\n"
-                        "Voici le contexte utile :\n"
-                        "{context_str}\n"
+                    chat_engine = CondensePlusContextChatEngine.from_defaults(
+                        retriever=retriever,
+                        llm=Settings.llm,
+                        memory=st.session_state.chat_memory,
+                        context_prompt=(
+                            "Vous êtes un assistant IA de confiance pour l'entreprise.\n"
+                            "Répondez à la question de l'utilisateur en vous basant sur le contexte fourni ci-dessous.\n"
+                            "Si la réponse n'est pas dans le contexte, dites-le simplement sans inventer d'informations.\n"
+                            "Voici le contexte utile :\n"
+                            "{context_str}\n"
+                        )
                     )
-                )
 
-                response = chat_engine.chat(user_query)
-                answer_text = str(response)
+                    response = chat_engine.chat(user_query)
+                    answer_text = str(response)
 
-                trace.update(output={"answer": answer_text})
+                    trace_span.update(
+                        output={"answer": answer_text}
+                    )
 
                 langfuse.flush()
                 print("✅ Trace envoyée à Langfuse")
