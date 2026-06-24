@@ -8,14 +8,9 @@ from dotenv import load_dotenv
 # 1. CHEMIN RACINE DU PROJET + CHARGEMENT DU .ENV
 # ============================================================
 
-# Si app.py est dans un dossier comme src/ ou frontend/,
-# parents[1] pointe vers la racine du projet.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
-# Charger explicitement le fichier .env depuis la racine
 load_dotenv(PROJECT_ROOT / ".env")
 
-# Ajouter la racine du projet au path Python
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
@@ -32,7 +27,6 @@ os.environ["LANGFUSE_BASE_URL"] = (
     or "https://cloud.langfuse.com"
 )
 
-# Vérification visible dans le terminal Streamlit
 print("LANGFUSE_PUBLIC_KEY exists:", bool(os.environ["LANGFUSE_PUBLIC_KEY"]))
 print("LANGFUSE_SECRET_KEY exists:", bool(os.environ["LANGFUSE_SECRET_KEY"]))
 print("LANGFUSE_BASE_URL:", os.environ["LANGFUSE_BASE_URL"])
@@ -40,36 +34,24 @@ print("GROQ_API_KEY exists:", bool(os.getenv("GROQ_API_KEY")))
 
 
 # ============================================================
-# 3. INITIALISATION LANGFUSE AVANT LES IMPORTS LLAMAINDEX/AGENTS
+# 3. INITIALISATION LANGFUSE VERSION COMPATIBLE
 # ============================================================
 
-# ============================================================
-# 3. INITIALISATION LANGFUSE AVANT LES IMPORTS LLAMAINDEX/AGENTS
-# ============================================================
+from langfuse import Langfuse
 
-from langfuse import get_client
-from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
-
-langfuse = get_client()
+langfuse = Langfuse(
+    public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
+    secret_key=os.environ["LANGFUSE_SECRET_KEY"],
+    host=os.environ["LANGFUSE_BASE_URL"],
+)
 
 try:
     if langfuse.auth_check():
         print("✅ Langfuse connecté")
     else:
-        print("❌ Langfuse non connecté : vérifie les clés Langfuse et LANGFUSE_BASE_URL")
+        print("❌ Langfuse non connecté : vérifie les clés Langfuse")
 except Exception as e:
     print("❌ Erreur auth_check Langfuse:", e)
-
-try:
-    if langfuse.auth_check():
-        print("✅ Langfuse connecté")
-    else:
-        print("❌ Langfuse non connecté : vérifie les clés Langfuse et LANGFUSE_BASE_URL")
-except Exception as e:
-    print("❌ Erreur auth_check Langfuse:", e)
-
-# Active le tracing LlamaIndex
-LlamaIndexInstrumentor().instrument()
 
 
 # ============================================================
@@ -87,7 +69,7 @@ st.subheader("Posez vos questions sur les documents de l'entreprise")
 
 
 # ============================================================
-# 5. IMPORTS PROJET APRÈS LANGFUSE
+# 5. IMPORTS PROJET
 # ============================================================
 
 from agents.search import setup_search_engine, Settings
@@ -121,48 +103,50 @@ for msg in st.session_state.messages:
 
 
 # ============================================================
-# 8. INPUT UTILISATEUR + TRAÇAGE LANGFUSE
+# 8. INPUT UTILISATEUR + TRACE LANGFUSE
 # ============================================================
 
 if user_query := st.chat_input("Votre question ici..."):
 
-    # Afficher le message utilisateur
     st.session_state.messages.append({"role": "user", "content": user_query})
 
     with st.chat_message("user"):
         st.write(user_query)
 
-    # Générer la réponse
     with st.chat_message("assistant"):
         with st.spinner("Le Copilot consulte les manuels et l'historique..."):
 
             try:
-                with langfuse.start_as_current_observation(
-                    as_type="span",
+                # Créer la trace Langfuse
+                trace = getattr(langfuse, "trace")(
                     name="enterprise-copilot-question",
                     input={"question": user_query},
-                ) as trace_span:
+                    metadata={
+                        "app": "enterprise-copilot",
+                        "source": "streamlit"
+                    }
+                )
 
-                    index = setup_search_engine()
-                    retriever = index.as_retriever(similarity_top_k=2)
+                index = setup_search_engine()
+                retriever = index.as_retriever(similarity_top_k=2)
 
-                    chat_engine = CondensePlusContextChatEngine.from_defaults(
-                        retriever=retriever,
-                        llm=Settings.llm,
-                        memory=st.session_state.chat_memory,
-                        context_prompt=(
-                            "Vous êtes un assistant IA de confiance pour l'entreprise.\n"
-                            "Répondez à la question de l'utilisateur en vous basant sur le contexte fourni ci-dessous.\n"
-                            "Si la réponse n'est pas dans le contexte, dites-le simplement sans inventer d'informations.\n"
-                            "Voici le contexte utile :\n"
-                            "{context_str}\n"
-                        )
+                chat_engine = CondensePlusContextChatEngine.from_defaults(
+                    retriever=retriever,
+                    llm=Settings.llm,
+                    memory=st.session_state.chat_memory,
+                    context_prompt=(
+                        "Vous êtes un assistant IA de confiance pour l'entreprise.\n"
+                        "Répondez à la question de l'utilisateur en vous basant sur le contexte fourni ci-dessous.\n"
+                        "Si la réponse n'est pas dans le contexte, dites-le simplement sans inventer d'informations.\n"
+                        "Voici le contexte utile :\n"
+                        "{context_str}\n"
                     )
+                )
 
-                    response = chat_engine.chat(user_query)
-                    answer_text = str(response)
+                response = chat_engine.chat(user_query)
+                answer_text = str(response)
 
-                    trace_span.update(output={"answer": answer_text})
+                trace.update(output={"answer": answer_text})
 
                 langfuse.flush()
                 print("✅ Trace envoyée à Langfuse")
