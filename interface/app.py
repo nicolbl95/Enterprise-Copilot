@@ -34,23 +34,23 @@ print("GROQ_API_KEY exists:", bool(os.getenv("GROQ_API_KEY")))
 
 
 # ============================================================
-# 3. INITIALISATION LANGFUSE VERSION RÉCENTE
+# 3. INITIALISATION LANGFUSE VERSION NATIVE (SDK v3)
 # ============================================================
 
 from langfuse import get_client
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
-langfuse = get_client()
+langfuse_client = get_client()
 
 try:
-    if langfuse.auth_check():
+    if langfuse_client.auth_check():
         print("✅ Langfuse connecté")
     else:
         print("❌ Langfuse non connecté : vérifie les clés Langfuse")
 except Exception as e:
     print("❌ Erreur auth_check Langfuse:", e)
 
-# On initialise l'instrumentation automatique une seule fois (sécurité Streamlit)
+# On initialise l'instrumentation OpenTelemetry pour LlamaIndex (Sécurité Streamlit)
 if "instrumented" not in st.session_state:
     LlamaIndexInstrumentor().instrument()
     st.session_state.instrumented = True
@@ -105,7 +105,7 @@ for msg in st.session_state.messages:
 
 
 # ============================================================
-# 8. INPUT UTILISATEUR + TRACE LANGFUSE
+# 8. INPUT UTILISATEUR + TRACE LANGFUSE (SDK v3)
 # ============================================================
 
 if user_query := st.chat_input("Votre question ici..."):
@@ -119,8 +119,9 @@ if user_query := st.chat_input("Votre question ici..."):
         with st.spinner("Le Copilot consulte les manuels et l'historique..."):
 
             try:
-                # Crée une observation racine. L'instrumentation OpenInference s'y rattachera.
-                with langfuse.start_as_current_observation(
+                # En SDK v3, le context manager 'start_as_current_observation' définit automatiquement
+                # le contexte OpenTelemetry. Les sous-étapes s'y rattachent grâce à cela.
+                with langfuse_client.start_as_current_observation(
                     as_type="span",
                     name="enterprise-copilot-question",
                     input={"question": user_query},
@@ -154,8 +155,8 @@ if user_query := st.chat_input("Votre question ici..."):
                         output={"answer": answer_text}
                     )
 
-                # Le flush est sorti du bloc 'with' pour s'assurer que toutes les données du span soient empaquetées avant l'envoi
-                langfuse.flush()
+                # Forcer l'envoi des traces en arrière-plan à la fin du bloc
+                langfuse_client.flush()
                 print("✅ Trace envoyée à Langfuse")
 
                 st.write(answer_text)
