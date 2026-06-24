@@ -50,8 +50,10 @@ try:
 except Exception as e:
     print("❌ Erreur auth_check Langfuse:", e)
 
-# Active l'instrumentation LlamaIndex
-LlamaIndexInstrumentor().instrument()
+# On initialise l'instrumentation automatique une seule fois (sécurité Streamlit)
+if "instrumented" not in st.session_state:
+    LlamaIndexInstrumentor().instrument()
+    st.session_state.instrumented = True
 
 
 # ============================================================
@@ -117,7 +119,7 @@ if user_query := st.chat_input("Votre question ici..."):
         with st.spinner("Le Copilot consulte les manuels et l'historique..."):
 
             try:
-                # Crée une observation/trace Langfuse pour cette question
+                # Crée une observation racine. L'instrumentation OpenInference s'y rattachera.
                 with langfuse.start_as_current_observation(
                     as_type="span",
                     name="enterprise-copilot-question",
@@ -147,10 +149,12 @@ if user_query := st.chat_input("Votre question ici..."):
                     response = chat_engine.chat(user_query)
                     answer_text = str(response)
 
+                    # Met à jour la fin de la trace avec la réponse finale
                     trace_span.update(
                         output={"answer": answer_text}
                     )
 
+                # Le flush est sorti du bloc 'with' pour s'assurer que toutes les données du span soient empaquetées avant l'envoi
                 langfuse.flush()
                 print("✅ Trace envoyée à Langfuse")
 
