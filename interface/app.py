@@ -43,15 +43,26 @@ print("GROQ_API_KEY exists:", bool(os.getenv("GROQ_API_KEY")))
 # 3. INITIALISATION LANGFUSE AVANT LES IMPORTS LLAMAINDEX/AGENTS
 # ============================================================
 
-from langfuse import get_client
+# ============================================================
+# 3. INITIALISATION LANGFUSE AVANT LES IMPORTS LLAMAINDEX/AGENTS
+# ============================================================
+
+from langfuse import Langfuse
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
-langfuse = get_client()
+langfuse = Langfuse(
+    public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
+    secret_key=os.environ["LANGFUSE_SECRET_KEY"],
+    host=os.environ["LANGFUSE_BASE_URL"],
+)
 
-if langfuse.auth_check():
-    print("✅ Langfuse connecté")
-else:
-    print("❌ Langfuse non connecté : vérifie les clés Langfuse et LANGFUSE_BASE_URL")
+try:
+    if langfuse.auth_check():
+        print("✅ Langfuse connecté")
+    else:
+        print("❌ Langfuse non connecté : vérifie les clés Langfuse et LANGFUSE_BASE_URL")
+except Exception as e:
+    print("❌ Erreur auth_check Langfuse:", e)
 
 # Active le tracing LlamaIndex
 LlamaIndexInstrumentor().instrument()
