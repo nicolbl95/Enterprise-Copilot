@@ -1,5 +1,5 @@
 import os
-from llama_index.core import SimpleDirectoryReader, VectorStoreIndex, Settings
+from llama_index.core import SimpleDirectoryReader, VectorStoreIndex, Settings, StorageContext
 from llama_index.vector_stores.qdrant import QdrantVectorStore 
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding 
 from qdrant_client import QdrantClient 
@@ -38,11 +38,14 @@ def ingest_documents(folder_path: str, collection_name: str = "enterprise_docs")
     Settings.chunk_size = 512 
     Settings.chunk_overlap = 50 
     
-    # Injection forcée dans le stockage vectoriel Qdrant
+    # CORRECTION : Utilisation explicite du StorageContext pour lier Qdrant
     vector_store = QdrantVectorStore(client=client, collection_name=collection_name) 
-    index = VectorStoreIndex.from_documents(documents, vector_store=vector_store) 
+    storage_context = StorageContext.from_defaults(vector_store=vector_store)
     
-    print(f"{len(documents)} documents ingérés dans Qdrant ✓") 
+    # On transmet le storage_context à l'index pour forcer l'écriture dans Docker
+    index = VectorStoreIndex.from_documents(documents, storage_context=storage_context) 
+    
+    print(f"{len(documents)} documents ingérés avec succès dans Qdrant ! ✓") 
     return index 
 
 if __name__ == "__main__": 
