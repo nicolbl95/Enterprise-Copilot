@@ -388,5 +388,6 @@ def run_agentic_rag(
         return {
             "answer": output.get("answer", ""),
             "sources": output.get("sources", []),
-            "steps": output.get("steps", [])
+            "steps": output.get("steps", []),
+            "context": output.get("context", "")
         }

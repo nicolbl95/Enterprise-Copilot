@@ -191,12 +191,13 @@ if user_query := st.chat_input("Votre question ici..."):
                     answer_text = result["answer"]
                     sources = result["sources"]
                     steps = result["steps"]
+                    context = result.get("context", "")
 
                     # Évaluation automatique RAGAS-style
                     eval_scores = evaluate_response(
                         question=user_query,
                         answer=answer_text,
-                        context="\n".join(sources) if sources else "",
+                        context=context,
                         trace_id=trace_id,
                     )
 
