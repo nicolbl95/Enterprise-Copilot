@@ -74,6 +74,7 @@ st.subheader("Orchestration LangGraph avec routage autonome")
 # ============================================================
 
 from agents.orchestrator import run_agentic_rag
+from agents.evaluator import evaluate_response
 import inspect
 import agents.orchestrator as orch
 
@@ -133,7 +134,7 @@ for msg in st.session_state.messages:
 
 
 # ============================================================
-# 8. INPUT UTILISATEUR + EXÉCUTION GRAPHE + TRACE LANGFUSE
+# 8. INPUT UTILISATEUR + EXÉCUTION GRAPHE + TRACE LANGFUSE + ÉVALUATION
 # ============================================================
 
 if user_query := st.chat_input("Votre question ici..."):
@@ -169,8 +170,18 @@ if user_query := st.chat_input("Votre question ici..."):
                     }
                 ) as trace_span:
 
+                    # Récupère l'ID de la trace active pour envoyer les scores à Langfuse
+                    raw_trace_id = getattr(trace_span, "trace_id", None)
+
+                    if callable(raw_trace_id):
+                        raw_trace_id = raw_trace_id()
+
+                    trace_id = str(raw_trace_id) if raw_trace_id else None
+
+                    print("✅ LANGFUSE TRACE ID:", trace_id)
+
                     # IMPORTANT :
-                    # On passe maintenant l'historique Streamlit à LangGraph.
+                    # On passe l'historique Streamlit à LangGraph.
                     result = run_agentic_rag(
                         user_query,
                         session_id=st.session_state.session_id,
@@ -181,11 +192,24 @@ if user_query := st.chat_input("Votre question ici..."):
                     sources = result["sources"]
                     steps = result["steps"]
 
+                    # Évaluation automatique RAGAS-style
+                    eval_scores = evaluate_response(
+                        question=user_query,
+                        answer=answer_text,
+                        context="\n".join(sources) if sources else "",
+                        trace_id=trace_id,
+                    )
+
+                    print("✅ EVAL SCORES:", eval_scores)
+
+                    # Mise à jour de la trace Langfuse avec réponse + scores
                     trace_span.update(
                         output={
                             "answer": answer_text,
                             "sources": sources,
-                            "steps": steps
+                            "steps": steps,
+                            "trace_id": trace_id,
+                            "eval_scores": eval_scores
                         }
                     )
 
@@ -199,6 +223,15 @@ if user_query := st.chat_input("Votre question ici..."):
 
                 if sources:
                     st.caption(f"📁 **Sources consultées :** {', '.join(sources)}")
+
+                # Affichage optionnel des scores dans Streamlit
+                if eval_scores:
+                    st.caption(
+                        f"📊 Évaluation — "
+                        f"Fidélité: {eval_scores.get('faithfulness')} | "
+                        f"Pertinence: {eval_scores.get('relevance')} | "
+                        f"Complétude: {eval_scores.get('completeness')}"
+                    )
 
                 # Sauvegarde de la réponse assistant dans l'historique Streamlit.
                 st.session_state.messages.append(
