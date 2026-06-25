@@ -17,7 +17,7 @@ def get_responder_agent():
 
     # On ajoute # type: ignore à la fin de la ligne pour supprimer l'alerte Pylance
     llm = ChatAnthropic(  # type: ignore
-        model_name="claude-3-5-sonnet-20241022",
+        model_name="claude-sonnet-4-6",
         temperature=0.5
     )
 
