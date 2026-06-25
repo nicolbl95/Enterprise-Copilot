@@ -6,6 +6,7 @@ import urllib.parse
 from pathlib import Path
 from typing import List, Dict, Any, Literal, Annotated
 from typing_extensions import TypedDict
+from dotenv import load_dotenv
 
 from anthropic import Anthropic
 from llama_index.core import VectorStoreIndex, Settings
@@ -29,8 +30,12 @@ print("✅ ORCHESTRATOR VERSION:", ORCHESTRATOR_VERSION)
 # ============================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(PROJECT_ROOT / ".env")
+
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
+
+print("ANTHROPIC_API_KEY exists in orchestrator:", bool(os.getenv("ANTHROPIC_API_KEY")))
 
 
 # ============================================================
@@ -38,8 +43,6 @@ if str(PROJECT_ROOT) not in sys.path:
 # ============================================================
 
 class AgentState(TypedDict):
-    # Mémoire conversationnelle LangGraph.
-    # add_messages permet d'accumuler les messages entre les appels.
     messages: Annotated[List[BaseMessage], add_messages]
 
     question: str
@@ -47,6 +50,7 @@ class AgentState(TypedDict):
     sources: List[str]
     steps: List[str]
     answer: str
+    evaluation: Dict[str, Any] | None
 
 
 # ============================================================
@@ -299,10 +303,16 @@ Format attendu :
         scores = json.loads(raw_json)
         print(f"📊 Scores obtenus : {scores}")
 
+        return {
+            "evaluation": scores
+        }
+
     except Exception as e:
         print(f"⚠️ Échec de l'auto-évaluation : {str(e)}")
 
-    return {}
+        return {
+            "evaluation": None
+        }
 
 
 # ============================================================
@@ -374,7 +384,8 @@ def run_agentic_rag(
             "context": "",
             "sources": [],
             "steps": [],
-            "answer": ""
+            "answer": "",
+            "evaluation": None
         }
 
         config = {
@@ -389,5 +400,6 @@ def run_agentic_rag(
             "answer": output.get("answer", ""),
             "sources": output.get("sources", []),
             "steps": output.get("steps", []),
-            "context": output.get("context", "")
+            "context": output.get("context", ""),
+            "evaluation": output.get("evaluation")
         }
