@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import sys
+import uuid  # ← ABSOLUMENT NÉCESSAIRE POUR LES SESSIONS REDIS
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -80,6 +81,10 @@ from agents.orchestrator import run_agentic_rag
 # 6. MÉMOIRE ET HISTORIQUE STREAMLIT
 # ============================================================
 
+# Initialisation de l'identifiant de session Redis unique
+if "session_id" not in st.session_state:
+    st.session_state.session_id = str(uuid.uuid4())
+
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {
@@ -126,12 +131,13 @@ if user_query := st.chat_input("Votre question ici..."):
                     input={"question": user_query},
                     metadata={
                         "app": "enterprise-copilot",
-                        "architecture": "langgraph-crag"
+                        "architecture": "langgraph-crag",
+                        "session_id": st.session_state.session_id
                     }
                 ) as trace_span:
 
-                    # Appel de notre orchestrateur multi-agents
-                    result = run_agentic_rag(user_query)
+                    # Appel de notre orchestrateur avec injection du session_id de Redis
+                    result = run_agentic_rag(user_query, session_id=st.session_state.session_id)
                     
                     answer_text = result["answer"]
                     sources = result["sources"]

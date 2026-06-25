@@ -14,6 +14,8 @@ from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from qdrant_client import QdrantClient
 
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.redis import RedisSaver
+from langchain_core.runnables import RunnableConfig  # ← Ajouté pour corriger l'erreur Pylance
 
 # Alignement des chemins du projet
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -148,6 +150,38 @@ def generate_node(state: AgentState) -> Dict[str, Any]:
     final_answer = extract_text_safely(message)
     return {"answer": final_answer}
 
+def evaluate_node(state: AgentState) -> Dict[str, Any]:
+    """Étape 5 : Le LLM-as-a-judge évalue la qualité de la réponse générée."""
+    print("⚖️ [Node: Evaluator] Claude évalue la qualité de sa réponse...")
+    anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    
+    eval_prompt = f"""Évalue cette réponse selon 3 critères. Réponds UNIQUEMENT en JSON brut, sans markdown, sans fioritures.
+Question : {state['question']}
+Contexte : {state['context'][:1000]}
+Réponse : {state['answer']}
+
+Format attendu :
+{{
+"faithfulness": 0.9,
+"relevance": 0.8,
+"completeness": 0.7
+}}"""
+
+    try:
+        message = anthropic_client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=150,
+            messages=[{"role": "user", "content": eval_prompt}]
+        )
+        raw_json = extract_text_safely(message).strip()
+        scores = json.loads(raw_json)
+        print(f"📊 Scores obtenus : {scores}")
+        
+    except Exception as e:
+        print(f"⚠️ Échec de l'auto-évaluation : {str(e)}")
+        
+    return {}
+
 # ============================================================
 # 3. COMPOSITION DU GRAPH (LangGraph Workflow)
 # ============================================================
@@ -157,6 +191,7 @@ workflow = StateGraph(AgentState)
 workflow.add_node("retrieve", retrieve_node)
 workflow.add_node("web_search", web_search_node)
 workflow.add_node("generate", generate_node)
+workflow.add_node("evaluate", evaluate_node)
 
 # Point d'entrée
 workflow.set_entry_point("retrieve")
@@ -173,14 +208,12 @@ workflow.add_conditional_edges(
 
 # Liens de terminaison
 workflow.add_edge("web_search", "generate")
-workflow.add_edge("generate", END)
+workflow.add_edge("generate", "evaluate")
+workflow.add_edge("evaluate", END)
 
-# Compilation
-app_graph = workflow.compile()
 
-def run_agentic_rag(question: str) -> dict:
-    """Fonction d'appel pour exécuter le graphe de RAG Correctif."""
-    # En typant explicitement le dictionnaire initial, Pylance valide parfaitement l'argument
+def run_agentic_rag(question: str, session_id: str = "default_session") -> dict:
+    """Fonction d'appel pour exécuter le graphe de RAG avec mémoire Redis."""
     inputs: AgentState = {
         "question": question, 
         "context": "", 
@@ -188,7 +221,16 @@ def run_agentic_rag(question: str) -> dict:
         "steps": [], 
         "answer": ""
     }
-    output = app_graph.invoke(inputs)
+    
+    # 🔑 Typage explicite avec RunnableConfig pour corriger l'erreur Pylance
+    config: RunnableConfig = {"configurable": {"thread_id": session_id}}
+    
+    # 💾 Connexion au Checkpointer Redis ouverte dynamiquement à chaque appel de l'application
+    with RedisSaver.from_conn_string("redis://localhost:6379") as saver:
+        app_graph = workflow.compile(checkpointer=saver)
+        output = app_graph.invoke(inputs, config=config)
+    
+    # ✨ Le return obligatoire bien aligné qui résout l'erreur Pylance
     return {
         "answer": output["answer"],
         "sources": output["sources"],
