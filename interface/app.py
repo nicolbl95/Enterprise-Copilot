@@ -1,7 +1,6 @@
 import streamlit as st
 import os
 import sys
-import uuid  # ← ABSOLUMENT NÉCESSAIRE POUR LES SESSIONS REDIS
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -34,7 +33,7 @@ print("LANGFUSE_BASE_URL:", os.environ["LANGFUSE_BASE_URL"])
 
 
 # ============================================================
-# 3. INITIALISATION LANGFUSE VERSION NATIVE (SDK v3)
+# 3. INITIALISATION LANGFUSE
 # ============================================================
 
 from langfuse import get_client
@@ -50,7 +49,7 @@ try:
 except Exception as e:
     print("❌ Erreur auth_check Langfuse:", e)
 
-# Initialisation de l'instrumentation pour le suivi global
+# Initialisation unique de l'instrumentation LlamaIndex
 if "instrumented" not in st.session_state:
     LlamaIndexInstrumentor().instrument()
     st.session_state.instrumented = True
@@ -71,19 +70,28 @@ st.subheader("Orchestration LangGraph avec routage autonome")
 
 
 # ============================================================
-# 5. IMPORTS AGENT PROJET (LangGraph Orchestrator)
+# 5. IMPORTS AGENT PROJET
 # ============================================================
 
 from agents.orchestrator import run_agentic_rag
+import inspect
+import agents.orchestrator as orch
 
+print("✅ ORCHESTRATOR FILE USED:", orch.__file__)
+print("✅ RUN_AGENTIC_RAG SIGNATURE:", inspect.signature(run_agentic_rag))
 
+if "chat_history" not in str(inspect.signature(run_agentic_rag)):
+    raise RuntimeError(
+        f"Mauvaise version de run_agentic_rag chargée : {inspect.signature(run_agentic_rag)} depuis {orch.__file__}"
+    )
 # ============================================================
 # 6. MÉMOIRE ET HISTORIQUE STREAMLIT
 # ============================================================
 
-# Initialisation de l'identifiant de session Redis unique
+# Session stable pour Redis pendant le développement.
+# Tu peux remettre uuid.uuid4() plus tard si tu veux une session neuve par utilisateur.
 if "session_id" not in st.session_state:
-    st.session_state.session_id = str(uuid.uuid4())
+    st.session_state.session_id = "nicolas-dev-session-v3"
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
@@ -96,6 +104,19 @@ if "messages" not in st.session_state:
     ]
 
 
+# Bouton pratique pour nettoyer l'historique local Streamlit.
+if st.button("🧹 Vider la conversation"):
+    st.session_state.messages = [
+        {
+            "role": "assistant",
+            "content": "Bonjour ! Je suis votre Copilot augmenté par LangGraph. Posez-moi une question sur les documents ou l'actualité !",
+            "sources": [],
+            "steps": []
+        }
+    ]
+    st.rerun()
+
+
 # ============================================================
 # 7. AFFICHAGE DE L'HISTORIQUE
 # ============================================================
@@ -103,19 +124,29 @@ if "messages" not in st.session_state:
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.write(msg["content"])
+
         if msg.get("steps"):
             st.info(f"👣 **Parcours des agents :** {' ➔ '.join(msg['steps'])}")
+
         if msg.get("sources"):
             st.caption(f"📁 **Sources consultées :** {', '.join(msg['sources'])}")
 
 
 # ============================================================
-# 8. INPUT UTILISATEUR + ÉXÉCUTION GRAPHE + TRACE LANGFUSE
+# 8. INPUT UTILISATEUR + EXÉCUTION GRAPHE + TRACE LANGFUSE
 # ============================================================
 
 if user_query := st.chat_input("Votre question ici..."):
 
-    st.session_state.messages.append({"role": "user", "content": user_query, "sources": [], "steps": []})
+    # Sauvegarde immédiate de la question utilisateur dans l'historique Streamlit.
+    st.session_state.messages.append(
+        {
+            "role": "user",
+            "content": user_query,
+            "sources": [],
+            "steps": []
+        }
+    )
 
     with st.chat_message("user"):
         st.write(user_query)
@@ -124,11 +155,13 @@ if user_query := st.chat_input("Votre question ici..."):
         with st.spinner("L'orchestrateur LangGraph évalue et exécute les nœuds..."):
 
             try:
-                # Context manager Langfuse SDK v3
                 with langfuse_client.start_as_current_observation(
                     as_type="span",
                     name="enterprise-copilot-agentic-rag",
-                    input={"question": user_query},
+                    input={
+                        "question": user_query,
+                        "session_id": st.session_state.session_id
+                    },
                     metadata={
                         "app": "enterprise-copilot",
                         "architecture": "langgraph-crag",
@@ -136,33 +169,42 @@ if user_query := st.chat_input("Votre question ici..."):
                     }
                 ) as trace_span:
 
-                    # Appel de notre orchestrateur avec injection du session_id de Redis
-                    result = run_agentic_rag(user_query, session_id=st.session_state.session_id)
-                    
+                    # IMPORTANT :
+                    # On passe maintenant l'historique Streamlit à LangGraph.
+                    result = run_agentic_rag(
+                        user_query,
+                        session_id=st.session_state.session_id,
+                        chat_history=st.session_state.messages
+                    )
+
                     answer_text = result["answer"]
                     sources = result["sources"]
                     steps = result["steps"]
 
-                    # Mise à jour de la trace Langfuse
                     trace_span.update(
-                        output={"answer": answer_text, "sources": sources, "steps": steps}
+                        output={
+                            "answer": answer_text,
+                            "sources": sources,
+                            "steps": steps
+                        }
                     )
 
-                # Forcer l'envoi des traces
                 langfuse_client.flush()
                 print("✅ Trace envoyée à Langfuse")
 
-                # Affichage des résultats dans l'UI
                 st.write(answer_text)
-                st.info(f"👣 **Parcours des agents :** {' ➔ '.join(steps)}")
+
+                if steps:
+                    st.info(f"👣 **Parcours des agents :** {' ➔ '.join(steps)}")
+
                 if sources:
                     st.caption(f"📁 **Sources consultées :** {', '.join(sources)}")
 
-                # Sauvegarde dans l'historique de session
+                # Sauvegarde de la réponse assistant dans l'historique Streamlit.
                 st.session_state.messages.append(
                     {
-                        "role": "assistant", 
-                        "content": answer_text, 
+                        "role": "assistant",
+                        "content": answer_text,
                         "sources": sources,
                         "steps": steps
                     }
