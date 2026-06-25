@@ -30,7 +30,6 @@ os.environ["LANGFUSE_BASE_URL"] = (
 print("LANGFUSE_PUBLIC_KEY exists:", bool(os.environ["LANGFUSE_PUBLIC_KEY"]))
 print("LANGFUSE_SECRET_KEY exists:", bool(os.environ["LANGFUSE_SECRET_KEY"]))
 print("LANGFUSE_BASE_URL:", os.environ["LANGFUSE_BASE_URL"])
-print("GROQ_API_KEY exists:", bool(os.getenv("GROQ_API_KEY")))
 
 
 # ============================================================
@@ -50,7 +49,7 @@ try:
 except Exception as e:
     print("❌ Erreur auth_check Langfuse:", e)
 
-# On initialise l'instrumentation OpenTelemetry pour LlamaIndex (Sécurité Streamlit)
+# Initialisation de l'instrumentation pour le suivi global
 if "instrumented" not in st.session_state:
     LlamaIndexInstrumentor().instrument()
     st.session_state.instrumented = True
@@ -71,26 +70,22 @@ st.subheader("Posez vos questions sur les documents de l'entreprise")
 
 
 # ============================================================
-# 5. IMPORTS PROJET
+# 5. IMPORTS AGENT PROJET
 # ============================================================
 
-from agents.search import setup_search_engine, Settings
-from llama_index.core.memory import ChatMemoryBuffer
-from llama_index.core.chat_engine import CondensePlusContextChatEngine
+from agents.retriever import retrieve_and_answer
 
 
 # ============================================================
 # 6. MÉMOIRE ET HISTORIQUE STREAMLIT
 # ============================================================
 
-if "chat_memory" not in st.session_state:
-    st.session_state.chat_memory = ChatMemoryBuffer.from_defaults(token_limit=3000)
-
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {
             "role": "assistant",
-            "content": "Bonjour ! Je suis votre Copilot. Que souhaitez-vous savoir aujourd'hui ?"
+            "content": "Bonjour ! Je suis votre Copilot. Que souhaitez-vous savoir aujourd'hui ?",
+            "sources": []
         }
     ]
 
@@ -102,25 +97,26 @@ if "messages" not in st.session_state:
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.write(msg["content"])
+        if msg.get("sources"):
+            st.caption(f"📁 **Sources consultées :** {', '.join(msg['sources'])}")
 
 
 # ============================================================
-# 8. INPUT UTILISATEUR + TRACE LANGFUSE (SDK v3)
+# 8. INPUT UTILISATEUR + ÉXÉCUTION AGENT + TRACE LANGFUSE
 # ============================================================
 
 if user_query := st.chat_input("Votre question ici..."):
 
-    st.session_state.messages.append({"role": "user", "content": user_query})
+    st.session_state.messages.append({"role": "user", "content": user_query, "sources": []})
 
     with st.chat_message("user"):
         st.write(user_query)
 
     with st.chat_message("assistant"):
-        with st.spinner("Le Copilot consulte les manuels et l'historique..."):
+        with st.spinner("Le Copilot consulte les manuels et génère la réponse..."):
 
             try:
-                # En SDK v3, le context manager 'start_as_current_observation' définit automatiquement
-                # le contexte OpenTelemetry. Les sous-étapes s'y rattachent grâce à cela.
+                # Context manager Langfuse SDK v3 pour tracer proprement l'appel Streamlit
                 with langfuse_client.start_as_current_observation(
                     as_type="span",
                     name="enterprise-copilot-question",
@@ -131,38 +127,29 @@ if user_query := st.chat_input("Votre question ici..."):
                     }
                 ) as trace_span:
 
-                    index = setup_search_engine()
-                    retriever = index.as_retriever(similarity_top_k=2)
-
-                    chat_engine = CondensePlusContextChatEngine.from_defaults(
-                        retriever=retriever,
-                        llm=Settings.llm,
-                        memory=st.session_state.chat_memory,
-                        context_prompt=(
-                            "Vous êtes un assistant IA de confiance pour l'entreprise.\n"
-                            "Répondez à la question de l'utilisateur en vous basant sur le contexte fourni ci-dessous.\n"
-                            "Si la réponse n'est pas dans le contexte, dites-le simplement sans inventer d'informations.\n"
-                            "Voici le contexte utile :\n"
-                            "{context_str}\n"
-                        )
-                    )
-
-                    response = chat_engine.chat(user_query)
-                    answer_text = str(response)
+                    # Appel direct de l'Agent 2 validé
+                    result = retrieve_and_answer(user_query)
+                    
+                    answer_text = result["answer"]
+                    sources = result["sources"]
 
                     # Met à jour la fin de la trace avec la réponse finale
                     trace_span.update(
-                        output={"answer": answer_text}
+                        output={"answer": answer_text, "sources": sources}
                     )
 
-                # Forcer l'envoi des traces en arrière-plan à la fin du bloc
+                # Forcer l'envoi des traces en arrière-plan
                 langfuse_client.flush()
                 print("✅ Trace envoyée à Langfuse")
 
+                # Affichage dans l'interface UI
                 st.write(answer_text)
+                if sources:
+                    st.caption(f"📁 **Sources consultées :** {', '.join(sources)}")
 
+                # Sauvegarde dans l'historique de session
                 st.session_state.messages.append(
-                    {"role": "assistant", "content": answer_text}
+                    {"role": "assistant", "content": answer_text, "sources": sources}
                 )
 
             except Exception as e:
