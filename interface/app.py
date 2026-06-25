@@ -60,20 +60,20 @@ if "instrumented" not in st.session_state:
 # ============================================================
 
 st.set_page_config(
-    page_title="Enterprise Copilot",
+    page_title="Enterprise Copilot — Agentic",
     page_icon="🤖",
     layout="centered"
 )
 
-st.title("🤖 Enterprise Copilot")
-st.subheader("Posez vos questions sur les documents de l'entreprise")
+st.title("🤖 Enterprise Copilot — Agentic RAG")
+st.subheader("Orchestration LangGraph avec routage autonome")
 
 
 # ============================================================
-# 5. IMPORTS AGENT PROJET
+# 5. IMPORTS AGENT PROJET (LangGraph Orchestrator)
 # ============================================================
 
-from agents.retriever import retrieve_and_answer
+from agents.orchestrator import run_agentic_rag
 
 
 # ============================================================
@@ -84,8 +84,9 @@ if "messages" not in st.session_state:
     st.session_state.messages = [
         {
             "role": "assistant",
-            "content": "Bonjour ! Je suis votre Copilot. Que souhaitez-vous savoir aujourd'hui ?",
-            "sources": []
+            "content": "Bonjour ! Je suis votre Copilot augmenté par LangGraph. Posez-moi une question sur les documents ou l'actualité !",
+            "sources": [],
+            "steps": []
         }
     ]
 
@@ -97,59 +98,68 @@ if "messages" not in st.session_state:
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.write(msg["content"])
+        if msg.get("steps"):
+            st.info(f"👣 **Parcours des agents :** {' ➔ '.join(msg['steps'])}")
         if msg.get("sources"):
             st.caption(f"📁 **Sources consultées :** {', '.join(msg['sources'])}")
 
 
 # ============================================================
-# 8. INPUT UTILISATEUR + ÉXÉCUTION AGENT + TRACE LANGFUSE
+# 8. INPUT UTILISATEUR + ÉXÉCUTION GRAPHE + TRACE LANGFUSE
 # ============================================================
 
 if user_query := st.chat_input("Votre question ici..."):
 
-    st.session_state.messages.append({"role": "user", "content": user_query, "sources": []})
+    st.session_state.messages.append({"role": "user", "content": user_query, "sources": [], "steps": []})
 
     with st.chat_message("user"):
         st.write(user_query)
 
     with st.chat_message("assistant"):
-        with st.spinner("Le Copilot consulte les manuels et génère la réponse..."):
+        with st.spinner("L'orchestrateur LangGraph évalue et exécute les nœuds..."):
 
             try:
-                # Context manager Langfuse SDK v3 pour tracer proprement l'appel Streamlit
+                # Context manager Langfuse SDK v3
                 with langfuse_client.start_as_current_observation(
                     as_type="span",
-                    name="enterprise-copilot-question",
+                    name="enterprise-copilot-agentic-rag",
                     input={"question": user_query},
                     metadata={
                         "app": "enterprise-copilot",
-                        "source": "streamlit"
+                        "architecture": "langgraph-crag"
                     }
                 ) as trace_span:
 
-                    # Appel direct de l'Agent 2 validé
-                    result = retrieve_and_answer(user_query)
+                    # Appel de notre orchestrateur multi-agents
+                    result = run_agentic_rag(user_query)
                     
                     answer_text = result["answer"]
                     sources = result["sources"]
+                    steps = result["steps"]
 
-                    # Met à jour la fin de la trace avec la réponse finale
+                    # Mise à jour de la trace Langfuse
                     trace_span.update(
-                        output={"answer": answer_text, "sources": sources}
+                        output={"answer": answer_text, "sources": sources, "steps": steps}
                     )
 
-                # Forcer l'envoi des traces en arrière-plan
+                # Forcer l'envoi des traces
                 langfuse_client.flush()
                 print("✅ Trace envoyée à Langfuse")
 
-                # Affichage dans l'interface UI
+                # Affichage des résultats dans l'UI
                 st.write(answer_text)
+                st.info(f"👣 **Parcours des agents :** {' ➔ '.join(steps)}")
                 if sources:
                     st.caption(f"📁 **Sources consultées :** {', '.join(sources)}")
 
                 # Sauvegarde dans l'historique de session
                 st.session_state.messages.append(
-                    {"role": "assistant", "content": answer_text, "sources": sources}
+                    {
+                        "role": "assistant", 
+                        "content": answer_text, 
+                        "sources": sources,
+                        "steps": steps
+                    }
                 )
 
             except Exception as e:
