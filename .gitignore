@@ -11,4 +11,7 @@ __pycache__/
 # Données locales et fichiers temporaires
 data/
 *.pdf
-.DS_Store
+.DS_Storegradio_venv/
+
+# Gradio virtual env
+gradio_venv/
