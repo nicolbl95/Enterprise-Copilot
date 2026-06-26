@@ -101,15 +101,31 @@ def format_history(messages: List[BaseMessage], max_messages: int = 12) -> str:
 # ============================================================
 
 def retrieve_node(state: AgentState) -> Dict[str, Any]:
-    """Étape 1 : recherche sémantique dans Qdrant."""
+    """Étape 1 : recherche sémantique dans Qdrant, compatible local + Qdrant Cloud."""
     print("🔍 [Node: Retriever] Recherche dans Qdrant...")
 
-    client = QdrantClient(host="localhost", port=6333)
+    qdrant_url = os.getenv("QDRANT_URL")
+    qdrant_api_key = os.getenv("QDRANT_API_KEY")
+    qdrant_collection = os.getenv("QDRANT_COLLECTION", "enterprise_docs")
+
+    if qdrant_url:
+        print("🌐 Qdrant mode: cloud")
+        client = QdrantClient(
+            url=qdrant_url,
+            api_key=qdrant_api_key,
+        )
+    else:
+        print("💻 Qdrant mode: local")
+        client = QdrantClient(
+            host=os.getenv("QDRANT_HOST", "localhost"),
+            port=int(os.getenv("QDRANT_PORT", "6333")),
+        )
+
     Settings.embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-en-v1.5")
 
     vector_store = QdrantVectorStore(
         client=client,
-        collection_name="enterprise_docs"
+        collection_name=qdrant_collection
     )
 
     index = VectorStoreIndex.from_vector_store(vector_store)
@@ -125,7 +141,6 @@ def retrieve_node(state: AgentState) -> Dict[str, Any]:
         "sources": list(set(sources)),
         "steps": state.get("steps", []) + ["Retrieved from Qdrant"]
     }
-
 
 def grade_documents_route(state: AgentState) -> Literal["generate", "web_search"]:
     """
@@ -355,7 +370,10 @@ def run_agentic_rag(
 
     print("✅ run_agentic_rag called with chat_history:", chat_history is not None)
 
-    with RedisSaver.from_conn_string("redis://localhost:6379") as saver:
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+    print("🧠 Redis URL utilisée:", redis_url)
+
+    with RedisSaver.from_conn_string(redis_url) as saver:
         saver.setup()
 
         app_graph = workflow.compile(checkpointer=saver)
