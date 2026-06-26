@@ -1,5 +1,7 @@
+# pyright: reportAttributeAccessIssue=false
+
 import uuid
-from typing import List, Tuple, Optional
+from typing import List, Dict, Optional, Any
 
 import gradio as gr
 import requests
@@ -18,12 +20,12 @@ API_URL = "http://localhost:8000"
 
 def chat_with_copilot(
     message: str,
-    history: List[Tuple[str, str]],
+    history: List[Dict[str, Any]],
     session_id: Optional[str],
 ):
     """
     Envoie la question à l'API FastAPI /chat,
-    puis formate la réponse avec sources et évaluation.
+    puis formate la réponse avec sources, parcours et évaluation.
     """
 
     if not session_id:
@@ -36,7 +38,7 @@ def chat_with_copilot(
                 "question": message,
                 "session_id": session_id,
             },
-            timeout=120,
+            timeout=180,
         )
 
         response.raise_for_status()
@@ -44,13 +46,29 @@ def chat_with_copilot(
 
     except requests.exceptions.ConnectionError:
         return (
-            "❌ Impossible de contacter l'API FastAPI. Vérifie que l'API tourne sur http://localhost:8000.",
+            "❌ Impossible de contacter l'API FastAPI.\n\n"
+            "Vérifie que l'API tourne bien sur : http://localhost:8000\n\n"
+            "Commande à lancer dans un autre terminal :\n"
+            "`python -m uvicorn api.routes.chat:app --reload --port 8000`",
             session_id,
         )
 
     except requests.exceptions.Timeout:
         return (
-            "⏱️ L'API a mis trop longtemps à répondre. Réessaie ou vérifie les logs FastAPI.",
+            "⏱️ L'API a mis trop longtemps à répondre. "
+            "Réessaie ou vérifie les logs FastAPI.",
+            session_id,
+        )
+
+    except requests.exceptions.HTTPError as e:
+        try:
+            error_detail = response.json()
+        except Exception:
+            error_detail = response.text
+
+        return (
+            f"❌ Erreur HTTP pendant l'appel API : {str(e)}\n\n"
+            f"Détail : {error_detail}",
             session_id,
         )
 
@@ -93,15 +111,23 @@ def chat_with_copilot(
 def respond(message, history, session_id):
     """
     Callback appelé quand l'utilisateur envoie un message.
+    Compatible avec le format messages de Gradio récent.
     """
 
     if not message or not message.strip():
         return "", history, session_id
 
-    answer, new_session_id = chat_with_copilot(message, history, session_id)
+    if history is None:
+        history = []
 
-    history = history or []
-    history.append((message, answer))
+    answer, new_session_id = chat_with_copilot(
+        message=message,
+        history=history,
+        session_id=session_id,
+    )
+
+    history.append({"role": "user", "content": message})
+    history.append({"role": "assistant", "content": answer})
 
     return "", history, new_session_id
 
@@ -119,8 +145,7 @@ def clear_conversation():
 # ============================================================
 
 with gr.Blocks(
-    title="Enterprise Knowledge Copilot",
-    theme=gr.themes.Soft()
+    title="Enterprise Knowledge Copilot"
 ) as demo:
 
     gr.Markdown("# 🤖 Enterprise Knowledge Copilot")
@@ -152,11 +177,15 @@ with gr.Blocks(
             gr.Markdown(
                 """
 **Agent 1** : Retrieval Qdrant  
+
 **Agent 2** : Routage / grading LangGraph  
+
 **Agent 3** : Mémoire conversationnelle Redis  
+
 **Agent 4** : Évaluation qualité LLM-as-judge  
 
 ---
+
 **API** : FastAPI  
 **Interface** : Gradio  
 **Observabilité** : Langfuse  
