@@ -366,58 +366,78 @@ def run_agentic_rag(
     session_id: str = "default_session",
     chat_history: list | None = None
 ) -> dict:
-    """Exécute le graphe Agentic RAG avec mémoire Redis + historique Streamlit."""
+    """
+    Exécute le graphe Agentic RAG.
+
+    Deux modes :
+    - USE_REDIS_CHECKPOINT=true  : utilise RedisSaver, utile en local avec Redis Docker.
+    - USE_REDIS_CHECKPOINT=false : désactive RedisSaver, utile pour HuggingFace Spaces.
+
+    Même sans RedisSaver, la mémoire conversationnelle fonctionne pendant la session
+    grâce à chat_history transmis par Gradio/FastAPI.
+    """
 
     print("✅ run_agentic_rag called with chat_history:", chat_history is not None)
 
+    use_redis_checkpoint = os.getenv("USE_REDIS_CHECKPOINT", "true").lower() == "true"
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-    print("🧠 Redis URL utilisée:", redis_url)
 
-    with RedisSaver.from_conn_string(redis_url) as saver:
-        saver.setup()
+    print("🧠 USE_REDIS_CHECKPOINT:", use_redis_checkpoint)
 
-        app_graph = workflow.compile(checkpointer=saver)
+    # Convertir l'historique Streamlit/Gradio/FastAPI en messages LangChain
+    langgraph_messages = []
 
-        langgraph_messages = []
+    if chat_history:
+        for msg in chat_history:
+            role = msg.get("role")
+            content = msg.get("content", "")
 
-        if chat_history:
-            for msg in chat_history:
-                role = msg.get("role")
-                content = msg.get("content", "")
+            if not content:
+                continue
 
-                if not content:
-                    continue
+            if role == "user":
+                langgraph_messages.append(HumanMessage(content=content))
+            elif role == "assistant":
+                langgraph_messages.append(AIMessage(content=content))
 
-                if role == "user":
-                    langgraph_messages.append(HumanMessage(content=content))
-                elif role == "assistant":
-                    langgraph_messages.append(AIMessage(content=content))
+    # Sécurité : si l'historique ne contient pas encore la question actuelle,
+    # on l'ajoute.
+    if not langgraph_messages or langgraph_messages[-1].content != question:
+        langgraph_messages.append(HumanMessage(content=question))
 
-        if not langgraph_messages or langgraph_messages[-1].content != question:
-            langgraph_messages.append(HumanMessage(content=question))
+    inputs = {
+        "question": question,
+        "messages": langgraph_messages,
+        "context": "",
+        "sources": [],
+        "steps": [],
+        "answer": "",
+        "evaluation": None
+    }
 
-        inputs = {
-            "question": question,
-            "messages": langgraph_messages,
-            "context": "",
-            "sources": [],
-            "steps": [],
-            "answer": "",
-            "evaluation": None
+    config = {
+        "configurable": {
+            "thread_id": session_id
         }
+    }
 
-        config = {
-            "configurable": {
-                "thread_id": session_id
-            }
-        }
+    if use_redis_checkpoint:
+        print("🧠 Redis URL utilisée:", redis_url)
 
+        with RedisSaver.from_conn_string(redis_url) as saver:
+            saver.setup()
+            app_graph = workflow.compile(checkpointer=saver)
+            output = app_graph.invoke(inputs, config=config)  # type: ignore
+
+    else:
+        print("🧠 RedisSaver désactivé — mémoire via chat_history uniquement")
+        app_graph = workflow.compile()
         output = app_graph.invoke(inputs, config=config)  # type: ignore
 
-        return {
-            "answer": output.get("answer", ""),
-            "sources": output.get("sources", []),
-            "steps": output.get("steps", []),
-            "context": output.get("context", ""),
-            "evaluation": output.get("evaluation")
-        }
+    return {
+        "answer": output.get("answer", ""),
+        "sources": output.get("sources", []),
+        "steps": output.get("steps", []),
+        "context": output.get("context", ""),
+        "evaluation": output.get("evaluation")
+    }
