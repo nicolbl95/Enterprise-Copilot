@@ -12,7 +12,8 @@ pinned: false
 
 # 🤖 Enterprise Knowledge Copilot
 
-![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Python 3.14.6](https://img.shields.io/badge/Python-3.14.6_Local-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Python 3.11 HF](https://img.shields.io/badge/Python-3.11_HuggingFace-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![VS Code](https://img.shields.io/badge/VS_Code-007ACC?style=for-the-badge&logo=visualstudiocode&logoColor=white)
 ![Gradio](https://img.shields.io/badge/Gradio-FF7C00?style=for-the-badge&logo=gradio&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
@@ -23,12 +24,11 @@ pinned: false
 ![Qdrant Cloud](https://img.shields.io/badge/Qdrant_Cloud-DC244C?style=for-the-badge&logo=qdrant&logoColor=white)
 ![Anthropic API](https://img.shields.io/badge/Anthropic_API-Claude-191919?style=for-the-badge&logo=anthropic&logoColor=white)
 ![Langfuse](https://img.shields.io/badge/Langfuse-000000?style=for-the-badge&logoColor=white)
-![HuggingFace Spaces](https://img.shields.io/badge/HuggingFace-Spaces-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)
 
-[![🚀 Démo Live](https://img.shields.io/badge/%F0%9F%9A%80_D%C3%A9mo_Live-HuggingFace_Spaces-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)](https://huggingface.co/spaces/nicolbl95/enterprise-knowledge-copilot)
+**Démo en ligne :**  
+https://huggingface.co/spaces/nicolbl95/enterprise-knowledge-copilot
 
 ---
-
 ## 📖 Description
 
 **Enterprise Knowledge Copilot** est une application web IA permettant d’interroger une documentation d’entreprise à l’aide d’une architecture **RAG multi-agents**.
