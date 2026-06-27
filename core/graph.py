@@ -41,6 +41,7 @@ class CopilotState(TypedDict, total=False):
     question: str
     session_id: str
     chat_history: List[Dict[str, Any]]
+    response_language: str
 
     context: str
     sources: List[str]
@@ -54,33 +55,58 @@ class CopilotState(TypedDict, total=False):
 
 
 # ============================================================
-# 2. NŒUD PRINCIPAL : ORCHESTRATEUR AGENTIC RAG
+# 2. HELPERS
+# ============================================================
+
+def normalize_response_language(language: str | None) -> str:
+    """
+    Normalise la langue de réponse.
+
+    Valeurs acceptées :
+    - fr
+    - en
+    """
+
+    language = (language or "fr").lower().strip()
+
+    if language not in ["fr", "en"]:
+        return "fr"
+
+    return language
+
+
+# ============================================================
+# 3. NŒUD PRINCIPAL : ORCHESTRATEUR AGENTIC RAG
 # ============================================================
 
 def agentic_rag_node(state: CopilotState) -> CopilotState:
     """
     Nœud principal qui appelle l'orchestrateur déjà validé.
 
-    agents/orchestrator.py gère déjà :
+    agents/orchestrator.py gère :
     - retrieval Qdrant
     - routage / grading
     - génération Claude
     - mémoire conversationnelle
-    - évaluation RAGAS-style interne
+    - évaluation LLM-as-judge
+    - langue de réponse FR / EN
     """
 
     question = state.get("question", "")
     session_id = state.get("session_id", "default_session")
     chat_history = state.get("chat_history", [])
+    response_language = normalize_response_language(state.get("response_language", "fr"))
 
     result = run_agentic_rag(
         question=question,
         session_id=session_id,
         chat_history=chat_history,
+        response_language=response_language,
     )
 
     return {
         **state,
+        "response_language": response_language,
         "context": result.get("context", ""),
         "sources": result.get("sources", []),
         "steps": result.get("steps", []),
@@ -91,7 +117,7 @@ def agentic_rag_node(state: CopilotState) -> CopilotState:
 
 
 # ============================================================
-# 3. NŒUD DE FORMATAGE FINAL
+# 4. NŒUD DE FORMATAGE FINAL
 # ============================================================
 
 def format_response_node(state: CopilotState) -> CopilotState:
@@ -112,7 +138,7 @@ def format_response_node(state: CopilotState) -> CopilotState:
 
 
 # ============================================================
-# 4. CONSTRUCTION DU GRAPHE
+# 5. CONSTRUCTION DU GRAPHE
 # ============================================================
 
 def build_copilot_graph():
@@ -141,7 +167,7 @@ copilot = build_copilot_graph()
 
 
 # ============================================================
-# 5. FONCTION D'APPEL SIMPLE POUR FASTAPI / TESTS
+# 6. FONCTION D'APPEL SIMPLE POUR FASTAPI / TESTS
 # ============================================================
 
 def run_copilot(
@@ -149,6 +175,7 @@ def run_copilot(
     session_id: str = "default_session",
     chat_history: List[Dict[str, Any]] | None = None,
     trace_id: str | None = None,
+    response_language: str = "fr",
 ) -> Dict[str, Any]:
     """
     Fonction simple à appeler depuis FastAPI.
@@ -160,13 +187,17 @@ def run_copilot(
     - context
     - evaluation
     - trace_id
+    - response_language
     """
+
+    clean_response_language = normalize_response_language(response_language)
 
     state: CopilotState = {
         "question": question,
         "session_id": session_id,
         "chat_history": chat_history or [],
         "trace_id": trace_id,
+        "response_language": clean_response_language,
     }
 
     output = copilot.invoke(state)
@@ -178,4 +209,5 @@ def run_copilot(
         "context": output.get("context", ""),
         "evaluation": output.get("evaluation"),
         "trace_id": output.get("trace_id"),
+        "response_language": output.get("response_language", clean_response_language),
     }

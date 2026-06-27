@@ -40,17 +40,147 @@ def build_pdf_download_link() -> str:
 PDF_LINK = build_pdf_download_link()
 
 
-EXAMPLE_QUESTIONS = [
-    "Quel est le délai de première réponse pour le support Business Critical ?",
-    "Quelles certifications NovaTech a-t-elle obtenues, et lesquelles sont en cours ?",
-    "Quelle remise obtient-on avec un engagement de 36 mois ?",
-    "Quel est le budget formation annuel par collaborateur et combien de jours sont garantis ?",
-    "Qu'est-ce que le RPO et le RTO en plan Premium, et que se passe-t-il si le SLA n'est pas atteint ?",
-]
+# ============================================================
+# 1.BIS TEXTES FR / EN
+# ============================================================
+
+TEXTS = {
+    "fr": {
+        "title": "# 🤖 NovaTech Copilot",
+        "intro": f"""
+        <p>
+        Ce Copilot IA simule un assistant de connaissance d’entreprise pour
+        <strong>NovaTech Industries</strong> ({PDF_LINK}), une entreprise fictive.
+        Il interroge une base documentaire interne avec recherche sémantique,
+        orchestration multi-agents, réponses sourcées et scoring qualité.
+        Posez votre propre question ou testez l’une des questions d’exemple ci-dessous.
+        </p>
+        """,
+        "conversation_label": "Conversation",
+        "textbox_label": "Votre question",
+        "textbox_placeholder": "Posez votre question...",
+        "send_button": "Envoyer",
+        "clear_button": "Effacer toute la conversation",
+        "examples_title": "### 💡 Questions d’exemple",
+        "sources_label": "📁 **Sources :** ",
+        "steps_label": "👣 **Parcours des agents :** ",
+        "quality_label": "📊 **Qualité** — ",
+        "faithfulness": "Fidélité",
+        "relevance": "Pertinence",
+        "completeness": "Complétude",
+        "connection_error": (
+            "❌ Impossible de contacter l'API FastAPI.\n\n"
+            "Vérifie que l'API tourne bien sur : http://localhost:8000\n\n"
+            "Commande à lancer dans un autre terminal :\n"
+            "`python -m uvicorn api.routes.chat:app --reload --port 8000`"
+        ),
+        "timeout_error": (
+            "⏱️ L'API a mis trop longtemps à répondre. "
+            "Réessaie ou vérifie les logs FastAPI."
+        ),
+        "http_error": "❌ Erreur HTTP pendant l'appel API",
+        "generic_error": "❌ Erreur pendant l'appel API",
+        "sidebar": """
+### 🧠 Architecture
+
+**Ce que démontre cette démo :**
+
+* **RAG d’entreprise** : recherche sémantique dans une base documentaire interne.
+* **Qdrant Cloud** : stockage vectoriel cloud, prêt pour un usage production.
+* **Anthropic API** : génération des réponses avec Claude via l’API Anthropic.
+* **LangGraph** : orchestration multi-agents avec étapes de retrieval, routage et évaluation.
+* **FastAPI** : backend REST séparé de l’interface.
+* **Gradio** : interface web déployable en un clic sur HuggingFace Spaces.
+* **Langfuse** : observabilité des appels LLM et suivi des traces.
+* **LLM-as-judge** : scoring automatique des réponses selon fidélité, pertinence et complétude.
+
+---
+
+### Agents
+
+**Agent 1** : Retrieval Qdrant  
+**Agent 2** : Routage / grading LangGraph  
+**Agent 3** : Mémoire conversationnelle  
+**Agent 4** : Évaluation qualité LLM-as-judge  
+""",
+        "examples": [
+            "Quel est le délai de première réponse pour le support Business Critical ?",
+            "Quelles certifications NovaTech a-t-elle obtenues, et lesquelles sont en cours ?",
+            "Quelle remise obtient-on avec un engagement de 36 mois ?",
+            "Quel est le budget formation annuel par collaborateur et combien de jours sont garantis ?",
+            "Qu'est-ce que le RPO et le RTO en plan Premium, et que se passe-t-il si le SLA n'est pas atteint ?",
+        ],
+    },
+    "en": {
+        "title": "# 🤖 NovaTech Copilot",
+        "intro": f"""
+        <p>
+        This AI Copilot simulates an enterprise knowledge assistant for
+        <strong>NovaTech Industries</strong> ({PDF_LINK}), a fictional company.
+        It queries an internal knowledge base using semantic search,
+        multi-agent orchestration, cited answers, and automated quality scoring.
+        Ask your own question or try one of the example questions below.
+        </p>
+        """,
+        "conversation_label": "Conversation",
+        "textbox_label": "Your question",
+        "textbox_placeholder": "Ask your question...",
+        "send_button": "Send",
+        "clear_button": "Clear entire conversation",
+        "examples_title": "### 💡 Example questions",
+        "sources_label": "📁 **Sources:** ",
+        "steps_label": "👣 **Agent path:** ",
+        "quality_label": "📊 **Quality** — ",
+        "faithfulness": "Faithfulness",
+        "relevance": "Relevance",
+        "completeness": "Completeness",
+        "connection_error": (
+            "❌ Unable to contact the FastAPI backend.\n\n"
+            "Make sure the API is running at: http://localhost:8000\n\n"
+            "Command to run in another terminal:\n"
+            "`python -m uvicorn api.routes.chat:app --reload --port 8000`"
+        ),
+        "timeout_error": (
+            "⏱️ The API took too long to respond. "
+            "Try again or check the FastAPI logs."
+        ),
+        "http_error": "❌ HTTP error during API call",
+        "generic_error": "❌ Error during API call",
+        "sidebar": """
+### 🧠 Architecture
+
+**What this demo demonstrates:**
+
+- **Enterprise RAG**: semantic search over internal company documentation.
+- **Qdrant Cloud**: cloud vector storage suitable for production-style retrieval.
+- **LangGraph**: multi-agent orchestration with retrieval, routing, and evaluation steps.
+- **FastAPI**: REST backend separated from the user interface.
+- **Gradio**: web interface deployable on HuggingFace Spaces.
+- **Langfuse**: observability for LLM calls and traces.
+- **LLM-as-judge**: automated response scoring for faithfulness, relevance, and completeness.
+
+---
+
+### Agents
+
+**Agent 1**: Qdrant retrieval  
+**Agent 2**: LangGraph routing / grading  
+**Agent 3**: Conversational memory  
+**Agent 4**: LLM-as-judge quality evaluation  
+""",
+        "examples": [
+            "What is the first response time for Business Critical support?",
+            "Which certifications has NovaTech obtained, and which ones are in progress?",
+            "What discount is granted for a 36-month commitment?",
+            "What is the annual training budget per employee and how many training days are guaranteed?",
+            "What are the RPO and RTO in the Premium plan, and what happens if the SLA is not met?",
+        ],
+    },
+}
 
 
 # ============================================================
-# 1.BIS STYLE CSS
+# 1.TER STYLE CSS
 # ============================================================
 
 CUSTOM_CSS = """
@@ -68,6 +198,25 @@ body,
 }
 
 /* ============================================================
+   Boutons langue FR / EN
+   ============================================================ */
+
+.language-row {
+    display: flex !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    gap: 10px !important;
+}
+
+.language-button {
+    min-width: 48px !important;
+    max-width: 60px !important;
+    height: 42px !important;
+    font-weight: 700 !important;
+    border-radius: 10px !important;
+}
+
+/* ============================================================
    Chatbot : éviter texte coupé + scroll horizontal
    ============================================================ */
 
@@ -76,7 +225,6 @@ body,
     overflow-x: hidden !important;
 }
 
-/* Le viewport interne ne doit pas créer de scroll horizontal */
 .custom-chatbot,
 .custom-chatbot > div,
 .custom-chatbot [data-testid],
@@ -85,7 +233,6 @@ body,
     overflow-x: hidden !important;
 }
 
-/* Messages et contenu markdown */
 .custom-chatbot .message,
 .custom-chatbot .message-row,
 .custom-chatbot .message-wrap,
@@ -97,7 +244,6 @@ body,
     overflow-x: hidden !important;
 }
 
-/* Empêcher le texte long de déborder */
 .custom-chatbot p,
 .custom-chatbot li,
 .custom-chatbot code,
@@ -108,7 +254,6 @@ body,
     white-space: normal !important;
 }
 
-/* Tables markdown : scroll local si nécessaire, pas scroll global */
 .custom-chatbot table {
     display: block;
     width: 100% !important;
@@ -116,7 +261,6 @@ body,
     overflow-x: auto !important;
 }
 
-/* Padding pour éviter que la première lettre soit coupée */
 .custom-chatbot .message,
 .custom-chatbot .prose,
 .custom-chatbot .markdown-body {
@@ -124,7 +268,6 @@ body,
     padding-right: 18px !important;
 }
 
-/* Réduire l'effet de sous-rectangle autour des réponses */
 .custom-chatbot .message {
     border: none !important;
     box-shadow: none !important;
@@ -153,12 +296,10 @@ body,
     display: none !important;
 }
 
-/* Certains boutons Gradio apparaissent dans le header du Chatbot */
 .custom-chatbot .icon-button {
     display: none !important;
 }
 
-/* Garder le label Conversation visible */
 .custom-chatbot .block-label,
 .custom-chatbot label {
     visibility: visible !important;
@@ -167,7 +308,7 @@ body,
 
 
 # ============================================================
-# 2. FONCTIONS D'APPEL API + NORMALISATION HISTORIQUE
+# 2. FONCTIONS API + NORMALISATION HISTORIQUE
 # ============================================================
 
 def normalize_message_content(content: Any) -> str:
@@ -241,11 +382,15 @@ def chat_with_copilot(
     message: str,
     history: List[Dict[str, Any]],
     session_id: Optional[str],
+    language: str,
 ):
     """
     Envoie la question à l'API FastAPI /chat,
     puis formate la réponse avec sources, parcours et évaluation.
     """
+
+    lang = language if language in TEXTS else "fr"
+    ui = TEXTS[lang]
 
     if not session_id:
         session_id = str(uuid.uuid4())
@@ -262,6 +407,7 @@ def chat_with_copilot(
                 "question": message,
                 "session_id": session_id,
                 "chat_history": clean_history,
+                "response_language": lang,
             },
             timeout=180,
         )
@@ -271,17 +417,13 @@ def chat_with_copilot(
 
     except requests.exceptions.ConnectionError:
         return (
-            "❌ Impossible de contacter l'API FastAPI.\n\n"
-            "Vérifie que l'API tourne bien sur : http://localhost:8000\n\n"
-            "Commande à lancer dans un autre terminal :\n"
-            "`python -m uvicorn api.routes.chat:app --reload --port 8000`",
+            ui["connection_error"],
             session_id,
         )
 
     except requests.exceptions.Timeout:
         return (
-            "⏱️ L'API a mis trop longtemps à répondre. "
-            "Réessaie ou vérifie les logs FastAPI.",
+            ui["timeout_error"],
             session_id,
         )
 
@@ -292,14 +434,14 @@ def chat_with_copilot(
             error_detail = response.text
 
         return (
-            f"❌ Erreur HTTP pendant l'appel API : {str(e)}\n\n"
+            f"{ui['http_error']} : {str(e)}\n\n"
             f"Détail : {error_detail}",
             session_id,
         )
 
     except Exception as e:
         return (
-            f"❌ Erreur pendant l'appel API : {str(e)}",
+            f"{ui['generic_error']} : {str(e)}",
             session_id,
         )
 
@@ -307,11 +449,11 @@ def chat_with_copilot(
 
     sources = result.get("sources", [])
     if sources:
-        answer += "\n\n---\n📁 **Sources :** " + ", ".join(sources)
+        answer += "\n\n---\n" + ui["sources_label"] + ", ".join(sources)
 
     steps = result.get("steps", [])
     if steps:
-        answer += "\n\n👣 **Parcours des agents :** " + " ➔ ".join(steps)
+        answer += "\n\n" + ui["steps_label"] + " ➔ ".join(steps)
 
     evaluation = result.get("evaluation")
     if evaluation:
@@ -320,10 +462,11 @@ def chat_with_copilot(
         completeness = evaluation.get("completeness", "N/A")
 
         answer += (
-            "\n\n📊 **Qualité** — "
-            f"Fidélité: {faithfulness} | "
-            f"Pertinence: {relevance} | "
-            f"Complétude: {completeness}"
+            "\n\n"
+            + ui["quality_label"]
+            + f"{ui['faithfulness']}: {faithfulness} | "
+            + f"{ui['relevance']}: {relevance} | "
+            + f"{ui['completeness']}: {completeness}"
         )
 
     return answer, session_id
@@ -333,7 +476,7 @@ def chat_with_copilot(
 # 3. CALLBACKS GRADIO
 # ============================================================
 
-def respond(message, history, session_id):
+def respond(message, history, session_id, language):
     """
     Callback appelé quand l'utilisateur envoie un message.
     Compatible avec le format messages de Gradio récent.
@@ -349,6 +492,7 @@ def respond(message, history, session_id):
         message=message,
         history=history,
         session_id=session_id,
+        language=language,
     )
 
     history.append({"role": "user", "content": message})
@@ -365,6 +509,40 @@ def clear_conversation():
     return [], None
 
 
+def select_language(language: str):
+    """
+    Change la langue de l'interface.
+    On vide aussi la conversation pour éviter un mélange FR / EN.
+    """
+
+    lang = language if language in TEXTS else "fr"
+    ui = TEXTS[lang]
+
+    if lang == "fr":
+        fr_variant = "primary"
+        en_variant = "secondary"
+    else:
+        fr_variant = "secondary"
+        en_variant = "primary"
+
+    return (
+        lang,
+        ui["title"],
+        ui["intro"],
+        gr.update(label=ui["conversation_label"]),
+        gr.update(label=ui["textbox_label"], placeholder=ui["textbox_placeholder"], value=""),
+        gr.update(value=ui["send_button"]),
+        gr.update(value=ui["clear_button"]),
+        ui["examples_title"],
+        *[gr.update(value=q) for q in ui["examples"]],
+        ui["sidebar"],
+        gr.update(variant=fr_variant),
+        gr.update(variant=en_variant),
+        [],
+        None,
+    )
+
+
 # ============================================================
 # 4. INTERFACE GRADIO
 # ============================================================
@@ -374,45 +552,51 @@ with gr.Blocks(
     css=CUSTOM_CSS
 ) as demo:
 
-    gr.Markdown("# 🤖 NovaTech Copilot")
-
-    gr.HTML(
-        f"""
-        <p>
-        Ce Copilot IA simule un assistant de connaissance d’entreprise pour
-        <strong>NovaTech Industries</strong> ({PDF_LINK}), une entreprise fictive.
-        Il interroge une base documentaire interne avec recherche sémantique,
-        orchestration multi-agents, réponses sourcées et scoring qualité.
-        Posez votre propre question ou testez l’une des questions d’exemple ci-dessous.
-        </p>
-        """
-    )
-
+    language_state = gr.State(value="fr")
     session_state = gr.State(value=None)
+
+    with gr.Row():
+        with gr.Column(scale=5):
+            title_md = gr.Markdown(TEXTS["fr"]["title"])
+
+        with gr.Column(scale=1, elem_classes=["language-row"]):
+            with gr.Row():
+                fr_btn = gr.Button(
+                    "FR",
+                    variant="primary",
+                    elem_classes=["language-button"],
+                )
+                en_btn = gr.Button(
+                    "EN",
+                    variant="secondary",
+                    elem_classes=["language-button"],
+                )
+
+    intro_html = gr.HTML(TEXTS["fr"]["intro"])
 
     with gr.Row():
         with gr.Column(scale=3):
             chatbot = gr.Chatbot(
                 height=250,
-                label="Conversation",
+                label=TEXTS["fr"]["conversation_label"],
                 elem_classes=["custom-chatbot"]
             )
 
             msg = gr.Textbox(
-                placeholder="Posez votre question...",
-                label="Votre question"
+                placeholder=TEXTS["fr"]["textbox_placeholder"],
+                label=TEXTS["fr"]["textbox_label"]
             )
 
             gr.Markdown("")
 
             with gr.Row():
-                submit_btn = gr.Button("Envoyer", variant="primary")
-                clear_btn = gr.Button("Effacer toute la conversation")
+                submit_btn = gr.Button(TEXTS["fr"]["send_button"], variant="primary")
+                clear_btn = gr.Button(TEXTS["fr"]["clear_button"])
 
-            gr.Markdown("### 💡 Questions d’exemple")
+            examples_title_md = gr.Markdown(TEXTS["fr"]["examples_title"])
 
             example_buttons = []
-            for question in EXAMPLE_QUESTIONS:
+            for question in TEXTS["fr"]["examples"]:
                 btn = gr.Button(
                     question,
                     variant="secondary"
@@ -420,39 +604,17 @@ with gr.Blocks(
                 example_buttons.append(btn)
 
         with gr.Column(scale=1):
-            gr.Markdown("### 🧠 Architecture")
-            gr.Markdown(
-                """
-**Ce que démontre cette démo :**
-
-- **RAG d’entreprise** : recherche sémantique dans une base documentaire interne.
-- **Qdrant Cloud** : stockage vectoriel cloud, prêt pour un usage production.
-- **LangGraph** : orchestration multi-agents avec étapes de retrieval, routage et évaluation.
-- **FastAPI** : backend REST séparé de l’interface.
-- **Gradio** : interface web déployable en un clic sur HuggingFace Spaces.
-- **Langfuse** : observabilité des appels LLM et suivi des traces.
-- **LLM-as-judge** : scoring automatique des réponses selon fidélité, pertinence et complétude.
-
----
-
-### Agents
-
-**Agent 1** : Retrieval Qdrant  
-**Agent 2** : Routage / grading LangGraph  
-**Agent 3** : Mémoire conversationnelle  
-**Agent 4** : Évaluation qualité LLM-as-judge  
-"""
-            )
+            sidebar_md = gr.Markdown(TEXTS["fr"]["sidebar"])
 
     submit_btn.click(
         respond,
-        inputs=[msg, chatbot, session_state],
+        inputs=[msg, chatbot, session_state, language_state],
         outputs=[msg, chatbot, session_state],
     )
 
     msg.submit(
         respond,
-        inputs=[msg, chatbot, session_state],
+        inputs=[msg, chatbot, session_state, language_state],
         outputs=[msg, chatbot, session_state],
     )
 
@@ -461,12 +623,41 @@ with gr.Blocks(
         outputs=[chatbot, session_state],
     )
 
-    for btn, question in zip(example_buttons, EXAMPLE_QUESTIONS):
+    for index, btn in enumerate(example_buttons):
         btn.click(
-            fn=lambda q=question: q,
-            inputs=[],
+            fn=lambda lang, i=index: TEXTS[lang if lang in TEXTS else "fr"]["examples"][i],
+            inputs=[language_state],
             outputs=msg,
         )
+
+    language_outputs = [
+        language_state,
+        title_md,
+        intro_html,
+        chatbot,
+        msg,
+        submit_btn,
+        clear_btn,
+        examples_title_md,
+        *example_buttons,
+        sidebar_md,
+        fr_btn,
+        en_btn,
+        chatbot,
+        session_state,
+    ]
+
+    fr_btn.click(
+        fn=lambda: select_language("fr"),
+        inputs=[],
+        outputs=language_outputs,
+    )
+
+    en_btn.click(
+        fn=lambda: select_language("en"),
+        inputs=[],
+        outputs=language_outputs,
+    )
 
 
 # ============================================================

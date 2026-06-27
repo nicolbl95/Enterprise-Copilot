@@ -20,7 +20,7 @@ from langgraph.checkpoint.redis import RedisSaver
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 
-ORCHESTRATOR_VERSION = "memory-fix-chat-history-v3"
+ORCHESTRATOR_VERSION = "memory-fix-chat-history-v4-language"
 
 print("✅ ORCHESTRATOR LOADED:", __file__)
 print("✅ ORCHESTRATOR VERSION:", ORCHESTRATOR_VERSION)
@@ -46,6 +46,7 @@ class AgentState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
 
     question: str
+    response_language: str
     context: str
     sources: List[str]
     steps: List[str]
@@ -96,6 +97,26 @@ def format_history(messages: List[BaseMessage], max_messages: int = 12) -> str:
     return "\n".join(format_message_for_history(msg) for msg in recent_messages)
 
 
+def get_language_instruction(response_language: str) -> str:
+    """
+    Retourne l'instruction système qui force la langue de réponse.
+    """
+    lang = (response_language or "fr").lower().strip()
+
+    if lang == "en":
+        return (
+            "Language rule: always answer in English. "
+            "Even if the user asks in French and even if the source documents are in French, "
+            "your final answer must be written in clear professional English."
+        )
+
+    return (
+        "Règle de langue : réponds toujours en français. "
+        "Même si certains documents ou termes techniques sont en anglais, "
+        "ta réponse finale doit être rédigée en français clair et professionnel."
+    )
+
+
 # ============================================================
 # 3. NŒUDS LANGGRAPH
 # ============================================================
@@ -141,6 +162,7 @@ def retrieve_node(state: AgentState) -> Dict[str, Any]:
         "sources": list(set(sources)),
         "steps": state.get("steps", []) + ["Retrieved from Qdrant"]
     }
+
 
 def grade_documents_route(state: AgentState) -> Literal["generate", "web_search"]:
     """
@@ -230,15 +252,17 @@ def web_search_node(state: AgentState) -> Dict[str, Any]:
 def generate_node(state: AgentState) -> Dict[str, Any]:
     """
     Étape 4 : génération finale.
-    Claude reçoit maintenant l'historique conversationnel + le contexte.
+    Claude reçoit l'historique conversationnel + le contexte + la langue de réponse.
     """
     print("✍️ [Node: Generator] Claude synthétise la réponse finale avec mémoire...")
 
     anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
     history_text = format_history(state.get("messages", []))
+    response_language = state.get("response_language", "fr")
+    language_instruction = get_language_instruction(response_language)
 
-    system_prompt = """Tu es un copilote d'entreprise expert.
+    system_prompt = f"""Tu es un copilote d'entreprise expert.
 
 Règles importantes :
 1. Réponds de façon claire, structurée et professionnelle.
@@ -247,6 +271,7 @@ Règles importantes :
 4. Utilise le contexte documentaire quand la question concerne les documents de l'entreprise.
 5. Si la réponse n'est ni dans l'historique ni dans le contexte, dis-le simplement.
 6. Ne prétends pas que l'information manque si elle apparaît dans l'historique conversationnel.
+7. {language_instruction}
 """
 
     user_prompt = f"""Historique conversationnel :
@@ -272,7 +297,6 @@ Réponds maintenant à la question de l'utilisateur.
 
     return {
         "answer": final_answer,
-        # On ajoute la réponse assistant à la mémoire.
         "messages": [AIMessage(content=final_answer)]
     }
 
@@ -358,13 +382,14 @@ workflow.add_edge("evaluate", END)
 
 
 # ============================================================
-# 5. EXÉCUTION DU GRAPHE AVEC MÉMOIRE REDIS + HISTORIQUE STREAMLIT
+# 5. EXÉCUTION DU GRAPHE AVEC MÉMOIRE REDIS + HISTORIQUE
 # ============================================================
 
 def run_agentic_rag(
     question: str,
     session_id: str = "default_session",
-    chat_history: list | None = None
+    chat_history: list | None = None,
+    response_language: str = "fr",
 ) -> dict:
     """
     Exécute le graphe Agentic RAG.
@@ -382,9 +407,13 @@ def run_agentic_rag(
     use_redis_checkpoint = os.getenv("USE_REDIS_CHECKPOINT", "true").lower() == "true"
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
 
-    print("🧠 USE_REDIS_CHECKPOINT:", use_redis_checkpoint)
+    response_language = (response_language or "fr").lower().strip()
+    if response_language not in ["fr", "en"]:
+        response_language = "fr"
 
-    # Convertir l'historique Streamlit/Gradio/FastAPI en messages LangChain
+    print("🧠 USE_REDIS_CHECKPOINT:", use_redis_checkpoint)
+    print("🌍 RESPONSE_LANGUAGE:", response_language)
+
     langgraph_messages = []
 
     if chat_history:
@@ -400,13 +429,12 @@ def run_agentic_rag(
             elif role == "assistant":
                 langgraph_messages.append(AIMessage(content=content))
 
-    # Sécurité : si l'historique ne contient pas encore la question actuelle,
-    # on l'ajoute.
     if not langgraph_messages or langgraph_messages[-1].content != question:
         langgraph_messages.append(HumanMessage(content=question))
 
     inputs = {
         "question": question,
+        "response_language": response_language,
         "messages": langgraph_messages,
         "context": "",
         "sources": [],

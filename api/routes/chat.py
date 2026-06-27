@@ -49,13 +49,20 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     question: str = Field(..., description="Question posée par l'utilisateur")
+
     session_id: Optional[str] = Field(
         default=None,
         description="Identifiant de session. Si absent, un UUID est généré."
     )
+
     chat_history: List[ChatMessage] = Field(
         default_factory=list,
         description="Historique de conversation envoyé par Gradio"
+    )
+
+    response_language: str = Field(
+        default="fr",
+        description="Langue de réponse attendue : 'fr' ou 'en'"
     )
 
 
@@ -134,6 +141,23 @@ def normalize_chat_history_for_graph(messages: List[ChatMessage]) -> List[Dict[s
     return clean_history
 
 
+def normalize_response_language(language: str) -> str:
+    """
+    Garantit que la langue envoyée par Gradio est propre.
+
+    Valeurs acceptées :
+    - fr
+    - en
+    """
+
+    language = (language or "fr").lower().strip()
+
+    if language not in ["fr", "en"]:
+        return "fr"
+
+    return language
+
+
 # ============================================================
 # 6. ROUTE CHAT
 # ============================================================
@@ -143,21 +167,30 @@ async def chat(request: ChatRequest):
     """
     Endpoint principal du Copilot.
 
-    Il reçoit une question, l'historique de conversation,
-    appelle le graphe LangGraph, puis retourne la réponse,
-    les sources, les étapes et l'évaluation.
+    Il reçoit :
+    - une question utilisateur ;
+    - un historique de conversation ;
+    - une langue de réponse attendue.
+
+    Puis il appelle le graphe LangGraph et retourne :
+    - la réponse ;
+    - les sources ;
+    - le parcours des agents ;
+    - l'évaluation qualité.
     """
 
     session_id = request.session_id or str(uuid.uuid4())
 
     try:
         chat_history = normalize_chat_history_for_graph(request.chat_history)
+        response_language = normalize_response_language(request.response_language)
 
         result = run_copilot(
             question=request.question,
             session_id=session_id,
             chat_history=chat_history,
-            trace_id=None
+            trace_id=None,
+            response_language=response_language,
         )
 
         return ChatResponse(
