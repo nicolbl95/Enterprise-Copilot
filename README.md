@@ -30,6 +30,14 @@ https://huggingface.co/spaces/nicolbl95/enterprise-knowledge-copilot
 
 ---
 
+## 📸 Aperçu de l'interface
+
+![Interface de l'application](interface/assets/2dashboard.png)
+
+*Interface Gradio bilingue avec sélection de langue FR / EN, interrogation du document NovaTech, réponses sourcées, parcours des agents et scores d’évaluation qualité.*
+
+---
+
 ## ✨ Fonctionnalités clés
 
 * 🤖 **Architecture RAG multi-agents avec LangGraph**
