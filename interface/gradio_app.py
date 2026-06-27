@@ -1,6 +1,7 @@
 # pyright: reportAttributeAccessIssue=false
 
 import uuid
+import base64
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 
@@ -16,6 +17,28 @@ API_URL = "http://localhost:8000"
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PDF_PATH = PROJECT_ROOT / "interface" / "assets" / "NovaTech.pdf"
+
+
+def build_pdf_download_link() -> str:
+    """
+    Crée un lien HTML de téléchargement intégré pour le PDF.
+    Cette méthode évite les problèmes de chemins Windows avec /file=...
+    """
+
+    if not PDF_PATH.exists():
+        return "<span style='color:#ff6b6b'>(PDF indisponible)</span>"
+
+    pdf_bytes = PDF_PATH.read_bytes()
+    encoded_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
+
+    return (
+        f'<a href="data:application/pdf;base64,{encoded_pdf}" '
+        f'download="NovaTech.pdf">PDF</a>'
+    )
+
+
+PDF_LINK = build_pdf_download_link()
+
 
 EXAMPLE_QUESTIONS = [
     "Quel est le délai de première réponse pour le support Business Critical ?",
@@ -162,17 +185,16 @@ with gr.Blocks(
 
     gr.Markdown("# 🤖 Enterprise Knowledge Copilot")
 
-    gr.Markdown(
-        "Ce Copilot IA simule un assistant de connaissance d’entreprise pour **NovaTech Industries**, "
-        "une entreprise fictive. Il interroge une base documentaire interne avec recherche sémantique, "
-        "orchestration multi-agents, réponses sourcées et scoring qualité. "
-        "Posez votre propre question ou testez l’une des questions d’exemple ci-dessous."
-    )
-
-    gr.File(
-        value=str(PDF_PATH),
-        label="📄 Télécharger le PDF source NovaTech",
-        interactive=False,
+    gr.HTML(
+        f"""
+        <p>
+        Ce Copilot IA simule un assistant de connaissance d’entreprise pour
+        <strong>NovaTech Industries</strong> ({PDF_LINK}), une entreprise fictive.
+        Il interroge une base documentaire interne avec recherche sémantique,
+        orchestration multi-agents, réponses sourcées et scoring qualité.
+        Posez votre propre question ou testez l’une des questions d’exemple ci-dessous.
+        </p>
+        """
     )
 
     session_state = gr.State(value=None)
@@ -255,7 +277,4 @@ with gr.Blocks(
 # ============================================================
 
 if __name__ == "__main__":
-    demo.launch(
-        server_port=7860,
-        allowed_paths=[str(PDF_PATH)],
-    )
+    demo.launch(server_port=7860)
