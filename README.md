@@ -1,15 +1,3 @@
----
-title: Enterprise Knowledge Copilot
-emoji: 🤖
-colorFrom: blue
-colorTo: indigo
-sdk: gradio
-sdk_version: "6.19.0"
-python_version: "3.11"
-app_file: app.py
-pinned: false
----
-
 # 🤖 Enterprise Knowledge Copilot
 
 ![Python 3.14.6](https://img.shields.io/badge/Python-3.14.6_Local-3776AB?style=for-the-badge&logo=python&logoColor=white)
@@ -24,9 +12,6 @@ pinned: false
 ![Qdrant Cloud](https://img.shields.io/badge/Qdrant_Cloud-DC244C?style=for-the-badge&logo=qdrant&logoColor=white)
 ![Anthropic API](https://img.shields.io/badge/Anthropic_API-Claude-191919?style=for-the-badge&logo=anthropic&logoColor=white)
 ![Langfuse](https://img.shields.io/badge/Langfuse-000000?style=for-the-badge&logoColor=white)
-
-**Démo en ligne :**  
-https://huggingface.co/spaces/nicolbl95/enterprise-knowledge-copilot
 
 ---
 ## 📖 Description
