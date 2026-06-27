@@ -13,6 +13,14 @@ import requests
 
 API_URL = "http://localhost:8000"
 
+EXAMPLE_QUESTIONS = [
+    "Quel est le délai de première réponse pour le support Business Critical ?",
+    "Quelles certifications NovaTech a-t-elle obtenues, et lesquelles sont en cours ?",
+    "Quelle remise obtient-on avec un engagement de 36 mois ?",
+    "Quel est le budget formation annuel par collaborateur et combien de jours sont garantis ?",
+    "Qu'est-ce que le RPO et le RTO en plan Premium, et que se passe-t-il si le SLA n'est pas atteint ?",
+]
+
 
 # ============================================================
 # 2. FONCTION D'APPEL API
@@ -105,7 +113,7 @@ def chat_with_copilot(
 
 
 # ============================================================
-# 3. CALLBACK GRADIO
+# 3. CALLBACKS GRADIO
 # ============================================================
 
 def respond(message, history, session_id):
@@ -149,9 +157,12 @@ with gr.Blocks(
 ) as demo:
 
     gr.Markdown("# 🤖 Enterprise Knowledge Copilot")
+
     gr.Markdown(
-        "Posez vos questions sur la documentation d'entreprise. "
-        "Le Copilot utilise un pipeline RAG multi-agents avec sources et évaluation qualité."
+    "Ce Copilot IA simule un assistant de connaissance d’entreprise pour **NovaTech Industries** "
+    "([PDF](/file=interface/assets/NovaTech.pdf)), une entreprise fictive. "
+    "Il interroge une base documentaire interne avec recherche sémantique, orchestration multi-agents, réponses sourcées et scoring qualité. "
+    "Posez votre propre question ou testez l’une des questions d’exemple ci-dessous."
     )
 
     session_state = gr.State(value=None)
@@ -159,7 +170,7 @@ with gr.Blocks(
     with gr.Row():
         with gr.Column(scale=3):
             chatbot = gr.Chatbot(
-                height=500,
+                height=250,
                 label="Conversation"
             )
 
@@ -168,9 +179,22 @@ with gr.Blocks(
                 label="Votre question"
             )
 
+            # Espace visuel entre le champ de saisie et les boutons
+            gr.Markdown("")
+
             with gr.Row():
                 submit_btn = gr.Button("Envoyer", variant="primary")
                 clear_btn = gr.Button("Effacer")
+
+            gr.Markdown("### 💡 Questions d’exemple")
+
+            example_buttons = []
+            for question in EXAMPLE_QUESTIONS:
+                btn = gr.Button(
+                    question,
+                    variant="secondary"
+                )
+                example_buttons.append(btn)
 
         with gr.Column(scale=1):
             gr.Markdown("### 🧠 Architecture")
@@ -180,7 +204,7 @@ with gr.Blocks(
 
 **Agent 2** : Routage / grading LangGraph  
 
-**Agent 3** : Mémoire conversationnelle Redis  
+**Agent 3** : Mémoire conversationnelle  
 
 **Agent 4** : Évaluation qualité LLM-as-judge  
 
@@ -209,10 +233,20 @@ with gr.Blocks(
         outputs=[chatbot, session_state],
     )
 
+    for btn, question in zip(example_buttons, EXAMPLE_QUESTIONS):
+        btn.click(
+            fn=lambda q=question: q,
+            inputs=[],
+            outputs=msg,
+        )
+
 
 # ============================================================
 # 5. LANCEMENT LOCAL
 # ============================================================
 
 if __name__ == "__main__":
-    demo.launch(server_port=7860)
+    demo.launch(
+        server_port=7860,
+        allowed_paths=["interface/assets/NovaTech.pdf"]
+    )
