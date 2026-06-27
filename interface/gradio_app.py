@@ -167,8 +167,75 @@ body,
 
 
 # ============================================================
-# 2. FONCTION D'APPEL API
+# 2. FONCTIONS D'APPEL API + NORMALISATION HISTORIQUE
 # ============================================================
+
+def normalize_message_content(content: Any) -> str:
+    """
+    Convertit le contenu Gradio en texte simple.
+
+    Gradio peut parfois stocker le contenu sous forme :
+    - str
+    - list[dict] avec {"text": "...", "type": "text"}
+    - dict
+    - autre objet
+    """
+
+    if content is None:
+        return ""
+
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, list):
+        parts = []
+
+        for item in content:
+            if isinstance(item, dict):
+                text = item.get("text") or item.get("content") or ""
+                if text:
+                    parts.append(str(text))
+            else:
+                parts.append(str(item))
+
+        return "\n".join(parts)
+
+    if isinstance(content, dict):
+        return str(content.get("text") or content.get("content") or "")
+
+    return str(content)
+
+
+def normalize_chat_history(history: Optional[List[Dict[str, Any]]]) -> List[Dict[str, str]]:
+    """
+    Nettoie l'historique Gradio avant envoi à FastAPI.
+
+    FastAPI doit recevoir uniquement :
+    {"role": "...", "content": "..."}
+    """
+
+    clean_history: List[Dict[str, str]] = []
+
+    if not history:
+        return clean_history
+
+    for msg in history:
+        if not isinstance(msg, dict):
+            continue
+
+        role = msg.get("role")
+        content = normalize_message_content(msg.get("content"))
+
+        if role in ["user", "assistant"] and content.strip():
+            clean_history.append(
+                {
+                    "role": role,
+                    "content": content
+                }
+            )
+
+    return clean_history
+
 
 def chat_with_copilot(
     message: str,
@@ -186,13 +253,15 @@ def chat_with_copilot(
     if history is None:
         history = []
 
+    clean_history = normalize_chat_history(history)
+
     try:
         response = requests.post(
             f"{API_URL}/chat",
             json={
                 "question": message,
                 "session_id": session_id,
-                "chat_history": history,
+                "chat_history": clean_history,
             },
             timeout=180,
         )

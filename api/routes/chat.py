@@ -44,7 +44,7 @@ app = FastAPI(
 
 class ChatMessage(BaseModel):
     role: str = Field(..., description="Rôle du message : user ou assistant")
-    content: str = Field(..., description="Contenu du message")
+    content: Any = Field(..., description="Contenu du message")
 
 
 class ChatRequest(BaseModel):
@@ -72,7 +72,70 @@ class IngestRequest(BaseModel):
 
 
 # ============================================================
-# 5. ROUTE CHAT
+# 5. NORMALISATION DU CONTENU
+# ============================================================
+
+def normalize_api_content(content: Any) -> str:
+    """
+    Convertit un contenu reçu par l'API en texte simple.
+
+    Gradio peut parfois envoyer :
+    - une string
+    - une liste de blocs [{"text": "...", "type": "text"}]
+    - un dictionnaire {"text": "..."}
+    - ou un autre objet.
+    """
+
+    if content is None:
+        return ""
+
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, list):
+        parts = []
+
+        for item in content:
+            if isinstance(item, dict):
+                text = item.get("text") or item.get("content") or ""
+                if text:
+                    parts.append(str(text))
+            else:
+                parts.append(str(item))
+
+        return "\n".join(parts)
+
+    if isinstance(content, dict):
+        return str(content.get("text") or content.get("content") or "")
+
+    return str(content)
+
+
+def normalize_chat_history_for_graph(messages: List[ChatMessage]) -> List[Dict[str, str]]:
+    """
+    Convertit l'historique Pydantic en liste de dicts simples
+    utilisables par LangGraph / LangChain.
+    """
+
+    clean_history = []
+
+    for msg in messages:
+        role = msg.role
+        content = normalize_api_content(msg.content)
+
+        if role in ["user", "assistant"] and content.strip():
+            clean_history.append(
+                {
+                    "role": role,
+                    "content": content
+                }
+            )
+
+    return clean_history
+
+
+# ============================================================
+# 6. ROUTE CHAT
 # ============================================================
 
 @app.post("/chat", response_model=ChatResponse)
@@ -88,15 +151,7 @@ async def chat(request: ChatRequest):
     session_id = request.session_id or str(uuid.uuid4())
 
     try:
-        # Conversion Pydantic -> dict simple pour LangGraph / LangChain
-        chat_history = [
-            {
-                "role": msg.role,
-                "content": msg.content
-            }
-            for msg in request.chat_history
-            if msg.content
-        ]
+        chat_history = normalize_chat_history_for_graph(request.chat_history)
 
         result = run_copilot(
             question=request.question,
@@ -118,7 +173,7 @@ async def chat(request: ChatRequest):
 
 
 # ============================================================
-# 6. ROUTE INGESTION
+# 7. ROUTE INGESTION
 # ============================================================
 
 @app.post("/ingest")
@@ -152,7 +207,7 @@ async def ingest(request: IngestRequest):
 
 
 # ============================================================
-# 7. ROUTE HEALTHCHECK
+# 8. ROUTE HEALTHCHECK
 # ============================================================
 
 @app.get("/health")
