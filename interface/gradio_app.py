@@ -1,6 +1,7 @@
 # pyright: reportAttributeAccessIssue=false
 
 import uuid
+from pathlib import Path
 from typing import List, Dict, Optional, Any
 
 import gradio as gr
@@ -12,6 +13,9 @@ import requests
 # ============================================================
 
 API_URL = "http://localhost:8000"
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PDF_PATH = PROJECT_ROOT / "interface" / "assets" / "NovaTech.pdf"
 
 EXAMPLE_QUESTIONS = [
     "Quel est le délai de première réponse pour le support Business Critical ?",
@@ -159,10 +163,16 @@ with gr.Blocks(
     gr.Markdown("# 🤖 Enterprise Knowledge Copilot")
 
     gr.Markdown(
-    "Ce Copilot IA simule un assistant de connaissance d’entreprise pour **NovaTech Industries** "
-    "([PDF](/file=interface/assets/NovaTech.pdf)), une entreprise fictive. "
-    "Il interroge une base documentaire interne avec recherche sémantique, orchestration multi-agents, réponses sourcées et scoring qualité. "
-    "Posez votre propre question ou testez l’une des questions d’exemple ci-dessous."
+        "Ce Copilot IA simule un assistant de connaissance d’entreprise pour **NovaTech Industries**, "
+        "une entreprise fictive. Il interroge une base documentaire interne avec recherche sémantique, "
+        "orchestration multi-agents, réponses sourcées et scoring qualité. "
+        "Posez votre propre question ou testez l’une des questions d’exemple ci-dessous."
+    )
+
+    gr.File(
+        value=str(PDF_PATH),
+        label="📄 Télécharger le PDF source NovaTech",
+        interactive=False,
     )
 
     session_state = gr.State(value=None)
@@ -179,7 +189,6 @@ with gr.Blocks(
                 label="Votre question"
             )
 
-            # Espace visuel entre le champ de saisie et les boutons
             gr.Markdown("")
 
             with gr.Row():
@@ -248,5 +257,5 @@ with gr.Blocks(
 if __name__ == "__main__":
     demo.launch(
         server_port=7860,
-        allowed_paths=["interface/assets/NovaTech.pdf"]
+        allowed_paths=[str(PDF_PATH)],
     )
