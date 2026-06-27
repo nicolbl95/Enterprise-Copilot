@@ -50,6 +50,123 @@ EXAMPLE_QUESTIONS = [
 
 
 # ============================================================
+# 1.BIS STYLE CSS
+# ============================================================
+
+CUSTOM_CSS = """
+/* ============================================================
+   Layout général
+   ============================================================ */
+
+* {
+    box-sizing: border-box;
+}
+
+body,
+.gradio-container {
+    overflow-x: hidden !important;
+}
+
+/* ============================================================
+   Chatbot : éviter texte coupé + scroll horizontal
+   ============================================================ */
+
+.custom-chatbot {
+    width: 100% !important;
+    overflow-x: hidden !important;
+}
+
+/* Le viewport interne ne doit pas créer de scroll horizontal */
+.custom-chatbot,
+.custom-chatbot > div,
+.custom-chatbot [data-testid],
+.custom-chatbot .wrap {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+}
+
+/* Messages et contenu markdown */
+.custom-chatbot .message,
+.custom-chatbot .message-row,
+.custom-chatbot .message-wrap,
+.custom-chatbot .message-container,
+.custom-chatbot .prose,
+.custom-chatbot .markdown-body {
+    max-width: 100% !important;
+    width: 100% !important;
+    overflow-x: hidden !important;
+}
+
+/* Empêcher le texte long de déborder */
+.custom-chatbot p,
+.custom-chatbot li,
+.custom-chatbot code,
+.custom-chatbot pre {
+    max-width: 100% !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+    white-space: normal !important;
+}
+
+/* Tables markdown : scroll local si nécessaire, pas scroll global */
+.custom-chatbot table {
+    display: block;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+}
+
+/* Padding pour éviter que la première lettre soit coupée */
+.custom-chatbot .message,
+.custom-chatbot .prose,
+.custom-chatbot .markdown-body {
+    padding-left: 18px !important;
+    padding-right: 18px !important;
+}
+
+/* Réduire l'effet de sous-rectangle autour des réponses */
+.custom-chatbot .message {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* ============================================================
+   Masquer les icônes d'action du chatbot
+   Share / Delete / Copy
+   ============================================================ */
+
+.custom-chatbot .message-buttons,
+.custom-chatbot .message-actions,
+.custom-chatbot .copy_code_button,
+.custom-chatbot button[aria-label*="Share"],
+.custom-chatbot button[aria-label*="share"],
+.custom-chatbot button[aria-label*="Delete"],
+.custom-chatbot button[aria-label*="delete"],
+.custom-chatbot button[aria-label*="Copy"],
+.custom-chatbot button[aria-label*="copy"],
+.custom-chatbot button[title*="Share"],
+.custom-chatbot button[title*="share"],
+.custom-chatbot button[title*="Delete"],
+.custom-chatbot button[title*="delete"],
+.custom-chatbot button[title*="Copy"],
+.custom-chatbot button[title*="copy"] {
+    display: none !important;
+}
+
+/* Certains boutons Gradio apparaissent dans le header du Chatbot */
+.custom-chatbot .icon-button {
+    display: none !important;
+}
+
+/* Garder le label Conversation visible */
+.custom-chatbot .block-label,
+.custom-chatbot label {
+    visibility: visible !important;
+}
+"""
+
+
+# ============================================================
 # 2. FONCTION D'APPEL API
 # ============================================================
 
@@ -66,12 +183,16 @@ def chat_with_copilot(
     if not session_id:
         session_id = str(uuid.uuid4())
 
+    if history is None:
+        history = []
+
     try:
         response = requests.post(
             f"{API_URL}/chat",
             json={
                 "question": message,
                 "session_id": session_id,
+                "chat_history": history,
             },
             timeout=180,
         )
@@ -180,10 +301,11 @@ def clear_conversation():
 # ============================================================
 
 with gr.Blocks(
-    title="Enterprise Knowledge Copilot"
+    title="NovaTech Copilot",
+    css=CUSTOM_CSS
 ) as demo:
 
-    gr.Markdown("# 🤖 Enterprise Knowledge Copilot")
+    gr.Markdown("# 🤖 NovaTech Copilot")
 
     gr.HTML(
         f"""
@@ -203,7 +325,8 @@ with gr.Blocks(
         with gr.Column(scale=3):
             chatbot = gr.Chatbot(
                 height=250,
-                label="Conversation"
+                label="Conversation",
+                elem_classes=["custom-chatbot"]
             )
 
             msg = gr.Textbox(
@@ -215,7 +338,7 @@ with gr.Blocks(
 
             with gr.Row():
                 submit_btn = gr.Button("Envoyer", variant="primary")
-                clear_btn = gr.Button("Effacer")
+                clear_btn = gr.Button("Effacer toute la conversation")
 
             gr.Markdown("### 💡 Questions d’exemple")
 
@@ -231,19 +354,24 @@ with gr.Blocks(
             gr.Markdown("### 🧠 Architecture")
             gr.Markdown(
                 """
-**Agent 1** : Retrieval Qdrant  
+**Ce que démontre cette démo :**
 
-**Agent 2** : Routage / grading LangGraph  
-
-**Agent 3** : Mémoire conversationnelle  
-
-**Agent 4** : Évaluation qualité LLM-as-judge  
+- **RAG d’entreprise** : recherche sémantique dans une base documentaire interne.
+- **Qdrant Cloud** : stockage vectoriel cloud, prêt pour un usage production.
+- **LangGraph** : orchestration multi-agents avec étapes de retrieval, routage et évaluation.
+- **FastAPI** : backend REST séparé de l’interface.
+- **Gradio** : interface web déployable en un clic sur HuggingFace Spaces.
+- **Langfuse** : observabilité des appels LLM et suivi des traces.
+- **LLM-as-judge** : scoring automatique des réponses selon fidélité, pertinence et complétude.
 
 ---
 
-**API** : FastAPI  
-**Interface** : Gradio  
-**Observabilité** : Langfuse  
+### Agents
+
+**Agent 1** : Retrieval Qdrant  
+**Agent 2** : Routage / grading LangGraph  
+**Agent 3** : Mémoire conversationnelle  
+**Agent 4** : Évaluation qualité LLM-as-judge  
 """
             )
 

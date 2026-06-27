@@ -33,7 +33,7 @@ from core.graph import run_copilot
 
 app = FastAPI(
     title="Enterprise Knowledge Copilot API",
-    description="API REST pour un Copilot RAG multi-agents avec LangGraph, Qdrant, Redis, Anthropic et Langfuse.",
+    description="API REST pour un Copilot RAG multi-agents avec LangGraph, Qdrant, Anthropic et Langfuse.",
     version="1.0.0"
 )
 
@@ -42,11 +42,20 @@ app = FastAPI(
 # 4. SCHÉMAS PYDANTIC
 # ============================================================
 
+class ChatMessage(BaseModel):
+    role: str = Field(..., description="Rôle du message : user ou assistant")
+    content: str = Field(..., description="Contenu du message")
+
+
 class ChatRequest(BaseModel):
     question: str = Field(..., description="Question posée par l'utilisateur")
     session_id: Optional[str] = Field(
         default=None,
         description="Identifiant de session. Si absent, un UUID est généré."
+    )
+    chat_history: List[ChatMessage] = Field(
+        default_factory=list,
+        description="Historique de conversation envoyé par Gradio"
     )
 
 
@@ -71,17 +80,28 @@ async def chat(request: ChatRequest):
     """
     Endpoint principal du Copilot.
 
-    Il reçoit une question, appelle le graphe LangGraph,
-    puis retourne la réponse, les sources, les étapes et l'évaluation.
+    Il reçoit une question, l'historique de conversation,
+    appelle le graphe LangGraph, puis retourne la réponse,
+    les sources, les étapes et l'évaluation.
     """
 
     session_id = request.session_id or str(uuid.uuid4())
 
     try:
+        # Conversion Pydantic -> dict simple pour LangGraph / LangChain
+        chat_history = [
+            {
+                "role": msg.role,
+                "content": msg.content
+            }
+            for msg in request.chat_history
+            if msg.content
+        ]
+
         result = run_copilot(
             question=request.question,
             session_id=session_id,
-            chat_history=[],
+            chat_history=chat_history,
             trace_id=None
         )
 
