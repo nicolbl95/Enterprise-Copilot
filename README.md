@@ -13,7 +13,7 @@
 ![Anthropic API](https://img.shields.io/badge/Anthropic_API-Claude-191919?style=for-the-badge&logo=anthropic&logoColor=white)
 ![Langfuse](https://img.shields.io/badge/Langfuse-000000?style=for-the-badge&logoColor=white)
 
----
+
 ## 📖 Description
 
 **Enterprise Knowledge Copilot** est une application web IA permettant d’interroger une documentation d’entreprise à l’aide d’une architecture **RAG multi-agents**.
